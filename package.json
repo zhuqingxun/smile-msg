@@ -1,0 +1,11 @@
+{
+  "name": "smile-msg",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:desktop": "pnpm --filter desktop dev",
+    "build:web": "pnpm --filter web build",
+    "build:desktop": "pnpm --filter desktop build"
+  }
+}

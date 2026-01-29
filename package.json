@@ -2,8 +2,6 @@
   "name": "smile-msg",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter web build",
-    "start": "node server/src/index.js",
     "dev:server": "pnpm --filter server dev",
     "dev:web": "pnpm --filter web dev",
     "dev:desktop": "pnpm --filter desktop dev",

@@ -23,6 +23,7 @@ export function setupChatHandlers(io, socket) {
 
     const ua = socket.handshake.headers['user-agent'] || ''
     const platform = parsePlatform(ua)
+    console.log(`[FCM] 用户登录: nickname=${nickname.trim()}, platform=${platform}, ua=${ua.slice(0, 80)}`)
     const result = registerUser(uuid, nickname.trim(), socket.id, platform)
 
     if (!result.success) {
@@ -66,6 +67,14 @@ export function setupChatHandlers(io, socket) {
     }
 
     callback({ success: true })
+
+    // 延迟检查：客户端是否在登录后成功注册了 pushToken
+    if (platform === 'android') {
+      setTimeout(() => {
+        const u = users.get(uuid)
+        console.log(`[FCM] token 注册检查 (登录后5s): user=${nickname.trim()}, hasToken=${!!u?.pushToken}`)
+      }, 5000)
+    }
   })
 
   // 创建私聊

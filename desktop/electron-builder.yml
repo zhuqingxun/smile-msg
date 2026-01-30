@@ -11,14 +11,11 @@ files:
 asarUnpack:
   - resources/**
 win:
+  icon: build/icon.ico
   executableName: SmileMsg
   target:
-    - target: nsis
+    - target: portable
       arch:
         - x64
-nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: SmileMsg
-  uninstallDisplayName: SmileMsg
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+portable:
+  artifactName: SmileMsg.${ext}

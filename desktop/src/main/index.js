@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../resources/icon.ico?asset'
 
 let mainWindow = null
 let tray = null
@@ -14,7 +14,7 @@ function createWindow() {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -25,11 +25,19 @@ function createWindow() {
     mainWindow.show()
   })
 
+  // 最小化 → 隐藏到系统托盘
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault()
+    mainWindow.hide()
+    mainWindow.setSkipTaskbar(true)
+  })
+
   // 关闭按钮 → 隐藏到托盘（不退出）
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault()
       mainWindow.hide()
+      mainWindow.setSkipTaskbar(true)
     }
   })
 
@@ -55,6 +63,7 @@ function createTray() {
       label: '显示主界面',
       click: () => {
         if (mainWindow) {
+          mainWindow.setSkipTaskbar(false)
           mainWindow.show()
           mainWindow.focus()
         }
@@ -76,6 +85,7 @@ function createTray() {
   // 单击托盘图标恢复窗口
   tray.on('click', () => {
     if (mainWindow) {
+      mainWindow.setSkipTaskbar(false)
       mainWindow.show()
       mainWindow.focus()
     }

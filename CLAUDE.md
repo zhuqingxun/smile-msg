@@ -68,6 +68,14 @@ App.vue 根据 `phase` 变量切换视图：`login` → LoginView，`idle`/`chat
 | 开发 | localhost:3000 | http://localhost:3000 | http://localhost:3000 |
 | 生产 | Zeabur 部署 | （空，使用相对路径） | https://smile-msg.zeabur.app |
 
+## Desktop 打包注意事项
+
+- **打包前必须杀旧进程**：SmileMsg 使用系统托盘常驻，关闭窗口不等于退出。旧进程锁定 exe 文件会导致打包卡住。`prebuild:win` 脚本会自动 `taskkill /F /IM SmileMsg.exe`。
+- **打包后自动创建桌面快捷方式**：`postbuild:win` 脚本（`scripts/postbuild-win.ps1`）会刷新图标缓存、复制 `SmileMsg.ico` 到 `dist/`、并创建桌面快捷方式。快捷方式的 `IconLocation` 指向 `.ico` 文件而非 exe PE 资源，以避免高 DPI（200%）下透明图标出现白色方框背景。
+- **禁止手动右键"发送到桌面快捷方式"**：Windows 右键创建的快捷方式从 exe PE 资源提取图标，在高 DPI 下会丢失透明度。始终使用构建流程自动生成的快捷方式。
+- **禁止用 rcedit 修改 portable exe**：portable exe 是自解压包装器，修改 PE 资源会破坏其结构导致无法启动。
+- 以上步骤已内置在 `pnpm --filter desktop build:win` 的 pre/post 钩子中，无需手动执行。
+
 ## 部署
 
 服务端部署在 Zeabur PaaS，同时托管 web/dist/ 静态文件。Desktop 分发 portable .exe 文件。管理页面：`GET /admin`，健康检查：`GET /health`。

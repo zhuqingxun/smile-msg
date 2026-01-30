@@ -11,3 +11,7 @@ android/android/app/build/
 android/android/local.properties
 android/android/.idea/
 android/android/capacitor-cordova-android-plugins/
+# Firebase 密钥
+server/firebase-service-account.json
+server/firebase-service-account.json.json
+android/android/app/google-services.json

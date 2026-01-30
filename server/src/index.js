@@ -6,6 +6,7 @@ import { dirname, join } from 'path'
 import { existsSync } from 'fs'
 import { setupChatHandlers } from './handlers/chat.js'
 import { getOnlineNicknames } from './store.js'
+import { initFirebase } from './push.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -79,6 +80,9 @@ if (existsSync(indexHtmlPath)) {
 io.on('connection', (socket) => {
   setupChatHandlers(io, socket)
 })
+
+// 初始化 Firebase（可选，无配置文件时推送功能禁用）
+initFirebase()
 
 const PORT = process.env.PORT || 3000
 httpServer.listen(PORT, () => {

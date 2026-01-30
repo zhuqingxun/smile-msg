@@ -8,7 +8,10 @@ import {
   loadSession,
   clearSession,
   startForegroundService,
-  stopForegroundService
+  stopForegroundService,
+  getFcmToken,
+  onFcmTokenRefresh,
+  removeFcmTokenRefreshListener
 } from './useNativeFeatures.js'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || ''
@@ -50,6 +53,23 @@ function onNewMessage(message) {
   }
 }
 
+// 获取并上报 FCM token
+async function registerPushToken() {
+  if (!socket || !socket.connected) return
+
+  const token = await getFcmToken()
+  if (token) {
+    socket.emit('register_push_token', { token })
+  }
+
+  // 监听 token 刷新
+  onFcmTokenRefresh((newToken) => {
+    if (socket && socket.connected) {
+      socket.emit('register_push_token', { token: newToken })
+    }
+  })
+}
+
 function initSocket() {
   // 如果 socket 已存在（无论连接状态），直接复用
   if (socket) {
@@ -83,6 +103,10 @@ function initSocket() {
           peerNickname.value = res.target?.nickname || ''
           phase.value = res.target ? 'chat' : 'idle'
           peerIsOffline.value = false
+        }
+        // 重连后重新上报 FCM token
+        if (res.success) {
+          registerPushToken()
         }
       })
     }
@@ -158,6 +182,7 @@ function login(nickname) {
           // 登录成功后持久化会话并启动前台服务
           saveSession(myUuid.value, myNickname.value)
           startForegroundService()
+          registerPushToken()
           resolve({ success: true })
         } else {
           error.value = res.error
@@ -214,6 +239,7 @@ function disconnect() {
  * 彻底销毁 socket 并重置所有状态
  */
 function destroyAndReset() {
+  removeFcmTokenRefreshListener()
   if (socket) {
     socket.removeAllListeners()
     socket.disconnect()

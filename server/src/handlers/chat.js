@@ -1,8 +1,9 @@
 import {
   registerUser, removeUser, createConversation,
   users, socketToUser, nicknameToUuid, conversations,
-  disconnectTimers
+  disconnectTimers, offlineMessages
 } from '../store.js'
+import { sendPushNotification, isFcmEnabled } from '../push.js'
 
 const GRACE_PERIOD_MS = 30 * 60 * 1000 // 30 分钟
 
@@ -25,6 +26,18 @@ export function setupChatHandlers(io, socket) {
       io.to(result.oldSocketId).emit('force_disconnect', { reason: '账号在其他地方登录' })
       const oldSocket = io.sockets.sockets.get(result.oldSocketId)
       if (oldSocket) oldSocket.disconnect(true)
+    }
+
+    // 下发离线消息缓存
+    const pendingMessages = offlineMessages.get(uuid)
+    if (pendingMessages && pendingMessages.length > 0) {
+      offlineMessages.delete(uuid)
+      // 延迟发送，确保客户端已准备好接收
+      setTimeout(() => {
+        for (const msg of pendingMessages) {
+          socket.emit('new_message', msg)
+        }
+      }, 500)
     }
 
     // 检查是否有未完成的会话（断线重连场景）
@@ -97,7 +110,7 @@ export function setupChatHandlers(io, socket) {
     if (!content || content.trim().length === 0) return
 
     const message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: crypto.randomUUID(),
       senderUuid: uuid,
       senderNickname: user.nickname,
       content: content,
@@ -107,6 +120,55 @@ export function setupChatHandlers(io, socket) {
 
     // 广播给房间内所有人（包括发送者）
     io.to(conversationId).emit('new_message', { conversationId, message })
+
+    // 检查对端是否离线（socket 断开但仍在宽限期内），触发 FCM 推送 + 离线缓存
+    const conv = conversations.get(conversationId)
+    if (conv) {
+      const peerUuid = [...conv.members].find(id => id !== uuid)
+      if (peerUuid) {
+        const peer = users.get(peerUuid)
+        if (peer) {
+          const peerSocketExists = peer.socketId && socketToUser.has(peer.socketId)
+
+          if (!peerSocketExists) {
+            // 对端 socket 已断开 → 缓存离线消息（上限 100 条）
+            if (!offlineMessages.has(peerUuid)) {
+              offlineMessages.set(peerUuid, [])
+            }
+            const queue = offlineMessages.get(peerUuid)
+            if (queue.length < 100) {
+              queue.push({ conversationId, message })
+            }
+
+            // 通过 FCM 推送通知
+            if (isFcmEnabled() && peer.pushToken) {
+              sendPushNotification(peer.pushToken, {
+                senderNickname: user.nickname,
+                content: content,
+                conversationId
+              }).then(result => {
+                if (result === 'token_invalid') {
+                  peer.pushToken = null
+                }
+              }).catch(e => console.warn('[FCM] 推送异常:', e.message))
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // 注册推送 token（Android FCM）
+  socket.on('register_push_token', ({ token }) => {
+    if (!token || typeof token !== 'string' || token.length > 500) return
+
+    const uuid = socketToUser.get(socket.id)
+    if (!uuid) return
+
+    const user = users.get(uuid)
+    if (user) {
+      user.pushToken = token
+    }
   })
 
   // 断开连接：启动宽限期而非立即清理
@@ -144,6 +206,7 @@ export function setupChatHandlers(io, socket) {
 
       users.delete(uuid)
       nicknameToUuid.delete(nickname)
+      offlineMessages.delete(uuid)
 
       // 通知对端并清理会话
       if (convId) {

@@ -3,6 +3,7 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { Preferences } from '@capacitor/preferences'
 import { App } from '@capacitor/app'
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service'
+import { FirebaseMessaging } from '@capacitor-firebase/messaging'
 
 // 振动反馈
 export async function vibrateOnMessage() {
@@ -94,5 +95,39 @@ export async function stopForegroundService() {
     await ForegroundService.stopForegroundService()
   } catch (e) {
     console.warn('前台服务停止失败:', e)
+  }
+}
+
+// FCM 推送：获取当前 token
+export async function getFcmToken() {
+  try {
+    const result = await FirebaseMessaging.getToken()
+    return result.token
+  } catch (e) {
+    console.warn('获取 FCM token 失败:', e)
+    return null
+  }
+}
+
+// FCM 推送：监听 token 刷新，返回取消函数
+let tokenRefreshListener = null
+
+export async function onFcmTokenRefresh(callback) {
+  // 移除旧监听
+  if (tokenRefreshListener) {
+    tokenRefreshListener.remove()
+    tokenRefreshListener = null
+  }
+
+  tokenRefreshListener = await FirebaseMessaging.addListener('tokenReceived', (event) => {
+    callback(event.token)
+  })
+}
+
+// FCM 推送：清理 token 刷新监听
+export function removeFcmTokenRefreshListener() {
+  if (tokenRefreshListener) {
+    tokenRefreshListener.remove()
+    tokenRefreshListener = null
   }
 }

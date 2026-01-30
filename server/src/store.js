@@ -13,6 +13,9 @@ export const nicknameToUuid = new Map()
 // 断线宽限定时器: uuid → timerId
 export const disconnectTimers = new Map()
 
+// 离线消息缓存: uuid → message[]
+export const offlineMessages = new Map()
+
 /**
  * 注册用户
  * @returns {{ success: boolean, error?: string, oldSocketId?: string }}
@@ -35,7 +38,11 @@ export function registerUser(uuid, nickname, socketId) {
   const existingUser = users.get(uuid)
   const oldSocketId = existingUser?.socketId
 
-  users.set(uuid, { socketId, nickname, conversationId: existingUser?.conversationId || null })
+  users.set(uuid, {
+    socketId, nickname,
+    conversationId: existingUser?.conversationId || null,
+    pushToken: existingUser?.pushToken || null
+  })
   socketToUser.set(socketId, uuid)
   nicknameToUuid.set(nickname, uuid)
 

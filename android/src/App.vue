@@ -5,12 +5,14 @@ import { useSocket } from './composables/useSocket.js'
 import LoginView from './components/LoginView.vue'
 import ChatView from './components/ChatView.vue'
 
-const { phase, disconnect, tryRestoreSession } = useSocket()
+const { phase, disconnect, leaveConversation, tryRestoreSession } = useSocket()
 
 onMounted(async () => {
   // Android 返回键处理
   CapApp.addListener('backButton', () => {
-    if (phase.value === 'chat' || phase.value === 'idle') {
+    if (phase.value === 'chat') {
+      leaveConversation()
+    } else if (phase.value === 'idle') {
       disconnect()
     } else {
       CapApp.exitApp()

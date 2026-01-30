@@ -64,8 +64,11 @@ export async function clearSession() {
 // 检查 App 是否在前台
 let isAppInForeground = true
 
-export function setupAppLifecycle({ onResume } = {}) {
-  App.addListener('pause', () => { isAppInForeground = false })
+export function setupAppLifecycle({ onResume, onPause } = {}) {
+  App.addListener('pause', () => {
+    isAppInForeground = false
+    if (onPause) onPause()
+  })
   App.addListener('resume', () => {
     isAppInForeground = true
     if (onResume) onResume()

@@ -152,10 +152,50 @@ export function setupChatHandlers(io, socket) {
                 }
               }).catch(e => console.warn('[FCM] 推送异常:', e.message))
             }
+          } else if (peer.inBackground) {
+            // 对端在线但 App 在后台 → WebView JS 可能被暂停，补发 FCM 推送
+            // 不缓存离线消息，因为 socket 连接仍在，消息已通过房间广播送达
+            if (isFcmEnabled() && peer.pushToken) {
+              sendPushNotification(peer.pushToken, {
+                senderNickname: user.nickname,
+                content: content,
+                conversationId
+              }).then(result => {
+                if (result === 'token_invalid') {
+                  peer.pushToken = null
+                }
+              }).catch(e => console.warn('[FCM] 推送异常:', e.message))
+            }
           }
         }
       }
     }
+  })
+
+  // 主动离开会话（不断开连接，不触发宽限期）
+  socket.on('leave_conversation', ({ conversationId }, callback) => {
+    const uuid = socketToUser.get(socket.id)
+    if (!uuid) return callback?.({ success: false })
+
+    const user = users.get(uuid)
+    if (!user || user.conversationId !== conversationId) return callback?.({ success: false })
+
+    const conv = conversations.get(conversationId)
+    if (conv) {
+      const peerUuid = [...conv.members].find(id => id !== uuid)
+      if (peerUuid) {
+        const peer = users.get(peerUuid)
+        if (peer) {
+          io.to(peer.socketId).emit('peer_offline', { conversationId })
+          peer.conversationId = null
+        }
+      }
+      conversations.delete(conversationId)
+    }
+
+    user.conversationId = null
+    socket.leave(conversationId)
+    callback?.({ success: true })
   })
 
   // 注册推送 token（Android FCM）
@@ -168,6 +208,16 @@ export function setupChatHandlers(io, socket) {
     const user = users.get(uuid)
     if (user) {
       user.pushToken = token
+    }
+  })
+
+  // 客户端上报前后台状态（Android）
+  socket.on('app_state', ({ inBackground }) => {
+    const uuid = socketToUser.get(socket.id)
+    if (!uuid) return
+    const user = users.get(uuid)
+    if (user) {
+      user.inBackground = !!inBackground
     }
   })
 

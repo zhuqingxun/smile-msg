@@ -179,6 +179,16 @@ function sendMessage(content) {
   })
 }
 
+function leaveConversation() {
+  if (!conversationId.value || !socket?.connected) return
+  socket.emit('leave_conversation', { conversationId: conversationId.value })
+  conversationId.value = ''
+  peerNickname.value = ''
+  messages.value = []
+  phase.value = 'idle'
+  peerIsOffline.value = false
+}
+
 function disconnect() {
   destroyAndReset()
 }
@@ -221,6 +231,7 @@ export function useSocket() {
     login,
     createChat,
     sendMessage,
+    leaveConversation,
     disconnect
   }
 }

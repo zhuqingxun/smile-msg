@@ -9,8 +9,11 @@ import {
 import { useSocket } from './composables/useSocket.js'
 
 async function initNative() {
-  const { reconnectIfNeeded } = useSocket()
-  setupAppLifecycle({ onResume: reconnectIfNeeded })
+  const { reconnectIfNeeded, notifyBackground, notifyForeground } = useSocket()
+  setupAppLifecycle({
+    onResume: () => { reconnectIfNeeded(); notifyForeground() },
+    onPause: () => { notifyBackground() }
+  })
   await initNotificationChannel()
   await requestNotificationPermission()
 }

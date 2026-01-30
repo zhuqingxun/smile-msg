@@ -4,7 +4,7 @@ import { useSocket } from '../composables/useSocket.js'
 
 const {
   phase, myUuid, peerNickname, peerIsOffline, messages, error, loading,
-  createChat, sendMessage, disconnect
+  createChat, sendMessage, leaveConversation
 } = useSocket()
 
 const targetInput = ref('')
@@ -28,7 +28,7 @@ function handleSend() {
 }
 
 function handleDisconnect() {
-  disconnect()
+  leaveConversation()
 }
 
 function handleKeydown(e) {

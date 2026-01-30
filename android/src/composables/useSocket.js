@@ -228,6 +228,16 @@ function sendMessage(content) {
   })
 }
 
+function leaveConversation() {
+  if (!conversationId.value || !socket?.connected) return
+  socket.emit('leave_conversation', { conversationId: conversationId.value })
+  conversationId.value = ''
+  peerNickname.value = ''
+  messages.value = []
+  phase.value = 'idle'
+  peerIsOffline.value = false
+}
+
 function disconnect() {
   // 主动退出时清除持久化数据并停止前台服务
   clearSession()
@@ -283,6 +293,24 @@ function reconnectIfNeeded() {
   }
 }
 
+/**
+ * 通知服务端：App 进入后台
+ */
+function notifyBackground() {
+  if (socket && socket.connected) {
+    socket.emit('app_state', { inBackground: true })
+  }
+}
+
+/**
+ * 通知服务端：App 回到前台
+ */
+function notifyForeground() {
+  if (socket && socket.connected) {
+    socket.emit('app_state', { inBackground: false })
+  }
+}
+
 export function useSocket() {
   return {
     // 状态（只读）
@@ -300,8 +328,11 @@ export function useSocket() {
     login,
     createChat,
     sendMessage,
+    leaveConversation,
     disconnect,
     tryRestoreSession,
-    reconnectIfNeeded
+    reconnectIfNeeded,
+    notifyBackground,
+    notifyForeground
   }
 }

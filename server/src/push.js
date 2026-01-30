@@ -8,21 +8,29 @@ let messaging = null
 
 /**
  * 初始化 Firebase Admin SDK
- * 需要环境变量 FIREBASE_SERVICE_ACCOUNT_PATH 或 server/firebase-service-account.json
+ * 优先级：环境变量 FIREBASE_SERVICE_ACCOUNT（JSON 字符串）
+ *       → 环境变量 FIREBASE_SERVICE_ACCOUNT_PATH（文件路径）
+ *       → 默认路径 server/firebase-service-account.json
  */
 export function initFirebase() {
   try {
     const admin = require('firebase-admin')
 
-    const keyPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
-      || path.resolve(process.cwd(), 'firebase-service-account.json')
+    let serviceAccount
 
-    if (!fs.existsSync(keyPath)) {
-      console.warn('[FCM] firebase-service-account.json 未找到，推送功能禁用')
-      return false
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    } else {
+      const keyPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
+        || path.resolve(process.cwd(), 'firebase-service-account.json')
+
+      if (!fs.existsSync(keyPath)) {
+        console.warn('[FCM] firebase-service-account.json 未找到，推送功能禁用')
+        return false
+      }
+
+      serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf-8'))
     }
-
-    const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf-8'))
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)

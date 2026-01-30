@@ -54,7 +54,7 @@ public class SmileMsgFirebaseService extends FirebaseMessagingService {
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_stat_notify)
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(senderNickname + " 发来消息")
                 .setContentText(content)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)

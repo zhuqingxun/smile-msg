@@ -54,17 +54,25 @@ export async function sendPushNotification(token, { senderNickname, content, con
   if (!messaging || !token) return false
 
   try {
+    const truncatedContent = content.length > 100 ? content.slice(0, 100) + '...' : content
+
     await messaging.send({
       token,
-      // data message：由原生 Service 处理，不依赖 WebView
+      notification: {
+        title: `${senderNickname} 发来消息`,
+        body: truncatedContent
+      },
       data: {
         type: 'new_message',
         senderNickname,
-        content: content.length > 100 ? content.slice(0, 100) + '...' : content,
+        content: truncatedContent,
         conversationId
       },
       android: {
-        priority: 'high'
+        priority: 'high',
+        notification: {
+          channelId: 'messages'
+        }
       }
     })
     return true

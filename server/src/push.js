@@ -51,7 +51,12 @@ export function initFirebase() {
  * @param {object} payload - { senderNickname, content, conversationId }
  */
 export async function sendPushNotification(token, { senderNickname, content, conversationId }) {
-  if (!messaging || !token) return false
+  if (!messaging || !token) {
+    console.log(`[FCM] 跳过推送: messaging=${!!messaging}, token=${!!token}`)
+    return false
+  }
+
+  console.log(`[FCM] 准备推送 → token=${token.slice(0, 20)}..., sender=${senderNickname}, convId=${conversationId}`)
 
   try {
     const truncatedContent = content.length > 100 ? content.slice(0, 100) + '...' : content
@@ -75,6 +80,7 @@ export async function sendPushNotification(token, { senderNickname, content, con
         }
       }
     })
+    console.log(`[FCM] 推送成功 ✓ → token=${token.slice(0, 20)}...`)
     return true
   } catch (e) {
     // token 失效时清理（常见于卸载重装）

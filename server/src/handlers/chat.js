@@ -137,6 +137,7 @@ export function setupChatHandlers(io, socket) {
         const peer = users.get(peerUuid)
         if (peer) {
           const peerSocketExists = peer.socketId && socketToUser.has(peer.socketId)
+          console.log(`[FCM] 消息推送决策: sender=${user.nickname} → peer=${peer.nickname}, socketExists=${peerSocketExists}, inBackground=${peer.inBackground}, hasToken=${!!peer.pushToken}, fcmEnabled=${isFcmEnabled()}`)
 
           if (!peerSocketExists) {
             // 对端 socket 已断开 → 缓存离线消息（上限 100 条）
@@ -208,14 +209,21 @@ export function setupChatHandlers(io, socket) {
 
   // 注册推送 token（Android FCM）
   socket.on('register_push_token', ({ token }) => {
-    if (!token || typeof token !== 'string' || token.length > 500) return
+    if (!token || typeof token !== 'string' || token.length > 500) {
+      console.log(`[FCM] register_push_token 参数无效: token=${typeof token}, len=${token?.length}`)
+      return
+    }
 
     const uuid = socketToUser.get(socket.id)
-    if (!uuid) return
+    if (!uuid) {
+      console.log(`[FCM] register_push_token 失败: socket ${socket.id} 未关联用户`)
+      return
+    }
 
     const user = users.get(uuid)
     if (user) {
       user.pushToken = token
+      console.log(`[FCM] token 已注册: user=${user.nickname}, token=${token.slice(0, 20)}...`)
     }
   })
 
@@ -226,6 +234,7 @@ export function setupChatHandlers(io, socket) {
     const user = users.get(uuid)
     if (user) {
       user.inBackground = !!inBackground
+      console.log(`[FCM] app_state: user=${user.nickname}, inBackground=${user.inBackground}, hasToken=${!!user.pushToken}`)
     }
   })
 
@@ -245,6 +254,7 @@ export function setupChatHandlers(io, socket) {
 
     // 清理 socket 映射，但保留用户数据和会话
     socketToUser.delete(socket.id)
+    console.log(`[FCM] 用户断开: user=${user.nickname}, hasToken=${!!user.pushToken}, hasConv=${!!user.conversationId}`)
 
     // 启动宽限期定时器
     disconnectTimes.set(uuid, Date.now())

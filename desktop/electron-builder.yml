@@ -1,4 +1,4 @@
-appId: com.smilemsg
+appId: com.smilemsg.app
 productName: SmileMsg
 directories:
   buildResources: build
@@ -10,6 +10,9 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
 win:
   icon: build/icon.ico
   executableName: SmileMsg

@@ -1,7 +1,10 @@
 import {
   registerUser, removeUser, createConversation,
-  users, socketToUser, nicknameToUuid, conversations
+  users, socketToUser, nicknameToUuid, conversations,
+  disconnectTimers
 } from '../store.js'
+
+const GRACE_PERIOD_MS = 30 * 60 * 1000 // 30 分钟
 
 export function setupChatHandlers(io, socket) {
 
@@ -106,29 +109,59 @@ export function setupChatHandlers(io, socket) {
     io.to(conversationId).emit('new_message', { conversationId, message })
   })
 
-  // 断开连接
+  // 断开连接：启动宽限期而非立即清理
   socket.on('disconnect', () => {
-    const removed = removeUser(socket.id)
-    if (!removed) return
+    const uuid = socketToUser.get(socket.id)
+    if (!uuid) return
 
-    // 通知聊天对方
-    if (removed.conversationId) {
-      const conv = conversations.get(removed.conversationId)
-      if (conv) {
-        const peerUuid = [...conv.members].find(id => id !== removed.uuid)
-        if (peerUuid) {
-          const peer = users.get(peerUuid)
-          if (peer) {
-            io.to(peer.socketId).emit('peer_offline', {
-              conversationId: removed.conversationId
-            })
-            // 清理对方的会话引用
-            peer.conversationId = null
-          }
-        }
-        // 会话已无意义，删除
-        conversations.delete(removed.conversationId)
-      }
+    const user = users.get(uuid)
+    if (!user) return
+
+    // 如果 socketId 不匹配（已被新连接取代），只清理旧映射
+    if (user.socketId !== socket.id) {
+      socketToUser.delete(socket.id)
+      return
     }
+
+    // 清理 socket 映射，但保留用户数据和会话
+    socketToUser.delete(socket.id)
+
+    // 启动宽限期定时器
+    const timerId = setTimeout(() => {
+      disconnectTimers.delete(uuid)
+
+      // 再次检查：如果用户已重连（socketId 已更新），不清理
+      const currentUser = users.get(uuid)
+      if (currentUser && currentUser.socketId && socketToUser.has(currentUser.socketId)) {
+        return
+      }
+
+      // 宽限期到期，真正清理
+      const deadUser = users.get(uuid)
+      if (!deadUser) return
+
+      const { nickname, conversationId: convId } = deadUser
+
+      users.delete(uuid)
+      nicknameToUuid.delete(nickname)
+
+      // 通知对端并清理会话
+      if (convId) {
+        const conv = conversations.get(convId)
+        if (conv) {
+          const peerUuid = [...conv.members].find(id => id !== uuid)
+          if (peerUuid) {
+            const peer = users.get(peerUuid)
+            if (peer) {
+              io.to(peer.socketId).emit('peer_offline', { conversationId: convId })
+              peer.conversationId = null
+            }
+          }
+          conversations.delete(convId)
+        }
+      }
+    }, GRACE_PERIOD_MS)
+
+    disconnectTimers.set(uuid, timerId)
   })
 }

@@ -10,6 +10,9 @@ export const socketToUser = new Map()
 // 昵称 → uuid 快速查找
 export const nicknameToUuid = new Map()
 
+// 断线宽限定时器: uuid → timerId
+export const disconnectTimers = new Map()
+
 /**
  * 注册用户
  * @returns {{ success: boolean, error?: string, oldSocketId?: string }}
@@ -19,6 +22,13 @@ export function registerUser(uuid, nickname, socketId) {
   const existingUuid = nicknameToUuid.get(nickname)
   if (existingUuid && existingUuid !== uuid) {
     return { success: false, error: '昵称已被使用' }
+  }
+
+  // 重连时取消宽限定时器
+  const pendingTimer = disconnectTimers.get(uuid)
+  if (pendingTimer) {
+    clearTimeout(pendingTimer)
+    disconnectTimers.delete(uuid)
   }
 
   // 如果该 UUID 已在线（重连或多开），踢掉旧连接

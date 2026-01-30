@@ -3,4 +3,11 @@ dist/
 out/
 .env.local
 *.exe
-.agents/
+nul
+
+# Android (Capacitor)
+android/android/.gradle/
+android/android/app/build/
+android/android/local.properties
+android/android/.idea/
+android/android/capacitor-cordova-android-plugins/

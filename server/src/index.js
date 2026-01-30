@@ -15,7 +15,9 @@ const io = new Server(httpServer, {
   cors: {
     origin: process.env.NODE_ENV === 'production' ? false : '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingInterval: 10000,
+  pingTimeout: 15000
 })
 
 // HTML 转义函数（防 XSS）

@@ -78,6 +78,9 @@ function initSocket() {
       if (messages.value.length > MAX_MESSAGES) {
         messages.value = messages.value.slice(-MAX_MESSAGES)
       }
+      if (document.hidden) {
+        window.electron?.ipcRenderer?.send('tray:flash-start')
+      }
     }
   })
 
@@ -87,6 +90,9 @@ function initSocket() {
     phase.value = 'chat'
     peerIsOffline.value = false
     messages.value = []
+    if (document.hidden) {
+      window.electron?.ipcRenderer?.send('tray:flash-start')
+    }
   })
 
   socket.on('peer_offline', ({ conversationId: convId }) => {

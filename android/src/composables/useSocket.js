@@ -55,15 +55,30 @@ function onNewMessage(message) {
 
 // 获取并上报 FCM token
 async function registerPushToken() {
-  if (!socket || !socket.connected) return
+  if (!socket || !socket.connected) {
+    console.warn('[FCM-client] registerPushToken 跳过: socket未就绪')
+    return
+  }
 
-  const token = await getFcmToken()
-  if (token) {
-    socket.emit('register_push_token', { token })
+  try {
+    const token = await getFcmToken()
+    const tokenInfo = token ? `${token.slice(0, 20)}...` : 'null'
+    console.log('[FCM-client] getFcmToken 结果:', tokenInfo)
+    socket.emit('client_log', { tag: 'FCM-client', message: `getFcmToken=${tokenInfo}` })
+
+    if (token) {
+      socket.emit('register_push_token', { token })
+    } else {
+      socket.emit('client_log', { tag: 'FCM-client', message: 'token 为 null，推送不可用' })
+    }
+  } catch (e) {
+    console.error('[FCM-client] registerPushToken 异常:', e)
+    socket.emit('client_log', { tag: 'FCM-client', message: `异常: ${e.message || e}` })
   }
 
   // 监听 token 刷新
   onFcmTokenRefresh((newToken) => {
+    console.log('[FCM-client] token 刷新:', newToken?.slice(0, 20))
     if (socket && socket.connected) {
       socket.emit('register_push_token', { token: newToken })
     }

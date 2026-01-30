@@ -238,6 +238,13 @@ export function setupChatHandlers(io, socket) {
     }
   })
 
+  // 客户端日志转发（调试用）
+  socket.on('client_log', ({ tag, message }) => {
+    const uuid = socketToUser.get(socket.id)
+    const user = uuid ? users.get(uuid) : null
+    console.log(`[${tag || 'CLIENT'}] (${user?.nickname || 'unknown'}): ${message}`)
+  })
+
   // 断开连接：启动宽限期而非立即清理
   socket.on('disconnect', () => {
     const uuid = socketToUser.get(socket.id)

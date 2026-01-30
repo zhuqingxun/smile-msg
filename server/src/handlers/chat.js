@@ -1,11 +1,17 @@
 import {
   registerUser, removeUser, createConversation,
   users, socketToUser, nicknameToUuid, conversations,
-  disconnectTimers, offlineMessages
+  disconnectTimers, disconnectTimes, offlineMessages
 } from '../store.js'
 import { sendPushNotification, isFcmEnabled } from '../push.js'
 
 const GRACE_PERIOD_MS = 30 * 60 * 1000 // 30 分钟
+
+function parsePlatform(ua) {
+  if (ua.includes('Electron')) return 'desktop'
+  if (ua.includes('Android')) return 'android'
+  return 'web'
+}
 
 export function setupChatHandlers(io, socket) {
 
@@ -15,7 +21,9 @@ export function setupChatHandlers(io, socket) {
       return callback({ success: false, error: '昵称无效' })
     }
 
-    const result = registerUser(uuid, nickname.trim(), socket.id)
+    const ua = socket.handshake.headers['user-agent'] || ''
+    const platform = parsePlatform(ua)
+    const result = registerUser(uuid, nickname.trim(), socket.id, platform)
 
     if (!result.success) {
       return callback({ success: false, error: result.error })
@@ -239,8 +247,10 @@ export function setupChatHandlers(io, socket) {
     socketToUser.delete(socket.id)
 
     // 启动宽限期定时器
+    disconnectTimes.set(uuid, Date.now())
     const timerId = setTimeout(() => {
       disconnectTimers.delete(uuid)
+      disconnectTimes.delete(uuid)
 
       // 再次检查：如果用户已重连（socketId 已更新），不清理
       const currentUser = users.get(uuid)

@@ -13,6 +13,9 @@ export const nicknameToUuid = new Map()
 // 断线宽限定时器: uuid → timerId
 export const disconnectTimers = new Map()
 
+// 断连时间记录: uuid → timestamp (断连时刻)
+export const disconnectTimes = new Map()
+
 // 离线消息缓存: uuid → message[]
 export const offlineMessages = new Map()
 
@@ -20,7 +23,7 @@ export const offlineMessages = new Map()
  * 注册用户
  * @returns {{ success: boolean, error?: string, oldSocketId?: string }}
  */
-export function registerUser(uuid, nickname, socketId) {
+export function registerUser(uuid, nickname, socketId, platform) {
   // 检查昵称是否被其他 UUID 占用
   const existingUuid = nicknameToUuid.get(nickname)
   if (existingUuid && existingUuid !== uuid) {
@@ -33,6 +36,7 @@ export function registerUser(uuid, nickname, socketId) {
     clearTimeout(pendingTimer)
     disconnectTimers.delete(uuid)
   }
+  disconnectTimes.delete(uuid)
 
   // 如果该 UUID 已在线（重连或多开），踢掉旧连接
   const existingUser = users.get(uuid)
@@ -41,7 +45,9 @@ export function registerUser(uuid, nickname, socketId) {
   users.set(uuid, {
     socketId, nickname,
     conversationId: existingUser?.conversationId || null,
-    pushToken: existingUser?.pushToken || null
+    pushToken: existingUser?.pushToken || null,
+    loginTime: existingUser?.loginTime || Date.now(),
+    platform: existingUser?.platform || platform,
   })
   socketToUser.set(socketId, uuid)
   nicknameToUuid.set(nickname, uuid)
@@ -106,4 +112,52 @@ export function createConversation(uuid1, uuid2) {
  */
 export function getOnlineNicknames() {
   return Array.from(users.values()).map(u => u.nickname)
+}
+
+/**
+ * 获取所有在线用户详情（管理页面用）
+ */
+export function getOnlineUsers() {
+  const GRACE_PERIOD_MS = 30 * 60 * 1000
+  const now = Date.now()
+  return Array.from(users.entries()).map(([uuid, u]) => {
+    let peerNickname = null
+    let status = 'idle'
+    let graceRemaining = null
+
+    if (disconnectTimers.has(uuid) && (!u.socketId || !socketToUser.has(u.socketId))) {
+      status = 'disconnected'
+      const disconnectTime = disconnectTimes.get(uuid)
+      if (disconnectTime) {
+        graceRemaining = Math.max(0, GRACE_PERIOD_MS - (now - disconnectTime))
+      }
+    } else if (u.conversationId) {
+      status = 'chatting'
+      const conv = conversations.get(u.conversationId)
+      if (conv) {
+        const peerUuid = [...conv.members].find(id => id !== uuid)
+        const peer = peerUuid ? users.get(peerUuid) : null
+        peerNickname = peer?.nickname || null
+      }
+    }
+
+    return {
+      uuid,
+      nickname: u.nickname,
+      loginTime: u.loginTime,
+      platform: u.platform,
+      status,
+      peerNickname,
+      graceRemaining,
+    }
+  })
+}
+
+/**
+ * 踢出用户（管理页面用），返回被踢用户信息
+ */
+export function kickUser(uuid) {
+  const user = users.get(uuid)
+  if (!user) return null
+  return { socketId: user.socketId, nickname: user.nickname }
 }

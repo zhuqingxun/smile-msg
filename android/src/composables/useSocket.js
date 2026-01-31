@@ -34,14 +34,11 @@ const error = ref('')
 const loading = ref(false)
 
 const MAX_MESSAGES = 200
-
-function generateUuid() {
-  return crypto.randomUUID()
-}
+let keepaliveTimer = null
 
 function getOrCreateUuid() {
   if (!myUuid.value) {
-    myUuid.value = generateUuid()
+    myUuid.value = crypto.randomUUID()
   }
   return myUuid.value
 }
@@ -51,54 +48,61 @@ function onNewMessage(message) {
   if (isInForeground()) {
     vibrateOnMessage()
   } else {
-    notifyNewMessage(peerNickname.value || '新消息', message.content || '')
+    notifyNewMessage(peerNickname.value || '新消息', message.content || '').catch(e => {
+      console.warn('[msg] 本地通知失败:', e?.message || e)
+    })
+  }
+}
+
+// 后台心跳保活：定期发 ping 防止 WebView 网络被系统切断
+function startKeepalive() {
+  stopKeepalive()
+  keepaliveTimer = setInterval(() => {
+    if (socket && socket.connected) {
+      socket.volatile.emit('ping_keepalive')
+    } else if (socket && myNickname.value) {
+      socket.connect()
+    }
+  }, 25000)
+}
+
+function stopKeepalive() {
+  if (keepaliveTimer) {
+    clearInterval(keepaliveTimer)
+    keepaliveTimer = null
   }
 }
 
 // GMS 检测 + 推送策略决策 + 条件启动前台服务 + FCM 注册
 async function registerPushAndDecideStrategy() {
-  if (!socket || !socket.connected) {
-    console.warn('[push] registerPushAndDecideStrategy 跳过: socket未就绪')
-    return
-  }
+  if (!socket || !socket.connected) return
 
   try {
-    // 1. GMS 检测（含 FCM token 获取，结果缓存）
     const { hasGms, token } = await checkGmsAvailability()
-
-    // 2. 上报 FCM token（如果有）
-    const tokenInfo = token ? `${token.slice(0, 20)}...` : 'null'
-    console.log('[push] GMS检测结果:', hasGms, 'token:', tokenInfo)
-    socket.emit('client_log', { tag: 'FCM-client', message: `getFcmToken=${tokenInfo}` })
+    console.log(`[push] GMS=${hasGms}, token=${token ? 'yes' : 'no'}`)
 
     if (token) {
       socket.emit('register_push_token', { token })
     }
 
-    // 3. 决定推送策略
-    const strategy = hasGms ? 'fcm' : await getPushStrategy()
-
-    // 4. 上报策略选择
-    socket.emit('client_log', { tag: 'push-strategy', message: `GMS=${hasGms}, strategy=${strategy}` })
-    console.log('[push] 策略选择:', `GMS=${hasGms}, strategy=${strategy}`)
-
-    // 5. 根据策略条件启动前台服务
-    if (!hasGms && strategy === STRATEGY_FOREGROUND_SERVICE) {
-      startForegroundService()
+    // 无 GMS 时根据策略决定是否启动前台服务
+    if (!hasGms) {
+      const strategy = await getPushStrategy()
+      if (strategy === STRATEGY_FOREGROUND_SERVICE) {
+        await startForegroundService()
+      }
     }
 
-    // 6. Token 刷新监听（仅有 GMS 时有意义）
+    // Token 刷新监听（仅有 GMS 时有意义）
     if (hasGms) {
       onFcmTokenRefresh((newToken) => {
-        console.log('[push] token 刷新:', newToken?.slice(0, 20))
         if (socket && socket.connected) {
           socket.emit('register_push_token', { token: newToken })
         }
       })
     }
   } catch (e) {
-    console.error('[push] registerPushAndDecideStrategy 异常:', e)
-    socket.emit('client_log', { tag: 'push-strategy', message: `异常: ${e.message || e}` })
+    console.error('[push] 推送策略初始化失败:', e?.message || e)
   }
 }
 
@@ -123,6 +127,7 @@ function initSocket() {
 
   socket.on('connect', () => {
     connected.value = true
+    startKeepalive()
 
     // 断线重连时自动重新登录
     if (myNickname.value) {
@@ -280,6 +285,7 @@ function disconnect() {
  * 彻底销毁 socket 并重置所有状态
  */
 function destroyAndReset() {
+  stopKeepalive()
   removeFcmTokenRefreshListener()
   if (socket) {
     socket.removeAllListeners()
@@ -324,18 +330,12 @@ function reconnectIfNeeded() {
   }
 }
 
-/**
- * 通知服务端：App 进入后台
- */
 function notifyBackground() {
   if (socket && socket.connected) {
     socket.emit('app_state', { inBackground: true })
   }
 }
 
-/**
- * 通知服务端：App 回到前台
- */
 function notifyForeground() {
   if (socket && socket.connected) {
     socket.emit('app_state', { inBackground: false })

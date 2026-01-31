@@ -47,9 +47,12 @@ export function registerUser(uuid, nickname, socketId, platform) {
     conversationId: existingUser?.conversationId || null,
     pushToken: existingUser?.pushToken || null,
     loginTime: existingUser?.loginTime || Date.now(),
-    platform: existingUser?.platform || platform,
+    platform,
   })
-  socketToUser.set(socketId, uuid)
+  // 仅当 socketId 非空时写入映射（WS 连接不需要此映射）
+  if (socketId) {
+    socketToUser.set(socketId, uuid)
+  }
   nicknameToUuid.set(nickname, uuid)
 
   return { success: true, oldSocketId }

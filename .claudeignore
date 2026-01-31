@@ -1,0 +1,24 @@
+# 构建产物
+**/dist/
+**/out/
+**/build/
+desktop/dist/
+desktop/out/
+
+# 依赖
+**/node_modules/
+**/oh_modules/
+
+# HarmonyOS 构建缓存
+harmony/.hvigor/
+harmony/.cxx/
+harmony/**/build/
+
+# Android 构建
+android/android/.gradle/
+android/android/app/build/
+android/android/.idea/
+
+# 其他
+*.exe
+pnpm-lock.yaml

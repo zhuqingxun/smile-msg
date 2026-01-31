@@ -14,10 +14,13 @@ async function initNative() {
     onResume: () => { reconnectIfNeeded(); notifyForeground() },
     onPause: () => { notifyBackground() }
   })
+
   await initNotificationChannel()
   await requestNotificationPermission()
 }
 
-initNative().then(() => {
+initNative().catch((e) => {
+  console.error('[init] 原生初始化失败:', e?.message || e)
+}).finally(() => {
   createApp(App).mount('#app')
 })

@@ -4,9 +4,13 @@ import { Server } from 'socket.io'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { existsSync } from 'fs'
+import { WebSocketServer } from 'ws'
 import { setupChatHandlers } from './handlers/chat.js'
-import { getOnlineUsers, kickUser, removeUser, disconnectTimers, disconnectTimes, users, nicknameToUuid, offlineMessages, conversations } from './store.js'
-import { initFirebase } from './push.js'
+import { cleanupConversation } from './handlers/chatLogic.js'
+import { handleWsConnection } from './handlers/ws.js'
+import { closeWsConnection } from './bridge.js'
+import { getOnlineUsers, kickUser, removeUser, disconnectTimers, disconnectTimes, users, nicknameToUuid, offlineMessages } from './store.js'
+import { initPush } from './push.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -46,7 +50,7 @@ function formatDuration(ms) {
 
 // 终端类型中文映射
 function platformLabel(platform) {
-  const map = { desktop: 'Desktop', android: 'Android', web: 'Web' }
+  const map = { desktop: 'Desktop', android: 'Android', web: 'Web', harmony: 'HarmonyOS' }
   return map[platform] || platform || 'Unknown'
 }
 
@@ -124,12 +128,14 @@ app.post('/admin/kick', express.urlencoded({ extended: false }), (req, res) => {
 
   const target = kickUser(uuid)
   if (target) {
-    // 有 socket 连接：通知并断开
     if (target.socketId) {
+      // Socket.io 用户：通知并断开
       io.to(target.socketId).emit('force_disconnect', { reason: '被管理员踢出' })
       const sock = io.sockets.sockets.get(target.socketId)
       if (sock) sock.disconnect(true)
       removeUser(target.socketId)
+    } else {
+      closeWsConnection(uuid, '被管理员踢出')
     }
   }
 
@@ -143,20 +149,8 @@ app.post('/admin/kick', express.urlencoded({ extended: false }), (req, res) => {
     }
     disconnectTimes.delete(uuid)
 
-    // 清理会话并通知对端
     if (user.conversationId) {
-      const conv = conversations.get(user.conversationId)
-      if (conv) {
-        const peerUuid = [...conv.members].find(id => id !== uuid)
-        if (peerUuid) {
-          const peer = users.get(peerUuid)
-          if (peer) {
-            io.to(peer.socketId).emit('peer_offline', { conversationId: user.conversationId })
-            peer.conversationId = null
-          }
-        }
-        conversations.delete(user.conversationId)
-      }
+      cleanupConversation(uuid, user.conversationId, io)
     }
 
     users.delete(uuid)
@@ -185,8 +179,14 @@ io.on('connection', (socket) => {
   setupChatHandlers(io, socket)
 })
 
-// 初始化 Firebase（可选，无配置文件时推送功能禁用）
-initFirebase()
+// 原生 WebSocket 端点（鸿蒙客户端用）
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' })
+wss.on('connection', (ws, req) => {
+  handleWsConnection(ws, req, io)
+})
+
+// 初始化推送通道（FCM + Push Kit，无配置时对应通道禁用）
+initPush()
 
 const PORT = process.env.PORT || 3000
 httpServer.listen(PORT, () => {

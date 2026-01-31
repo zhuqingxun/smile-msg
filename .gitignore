@@ -5,6 +5,16 @@ out/
 *.exe
 nul
 
+# 强制忽略所有层级下的 dist 和 node_modules
+**/dist/
+**/node_modules/
+**/out/
+**/build/
+
+# 特别针对你的项目结构
+desktop/dist/
+desktop/out/
+
 # Android (Capacitor)
 android/android/.gradle/
 android/android/app/build/
@@ -15,3 +25,10 @@ android/android/capacitor-cordova-android-plugins/
 server/firebase-service-account.json
 server/firebase-service-account.json.json
 android/android/app/google-services.json
+
+# HarmonyOS 构建缓存
+harmony/.hvigor/
+harmony/.cxx/
+harmony/.idea/
+harmony/oh_modules/
+harmony/local.properties

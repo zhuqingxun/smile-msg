@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "SmileMsg 主模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "SmileMsg 阅后即焚聊天"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "SmileMsg"
+    },
+    {
+      "name": "permission_background_reason",
+      "value": "保持消息推送连接"
+    }
+  ]
+}

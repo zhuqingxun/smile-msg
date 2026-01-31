@@ -1,6 +1,7 @@
 import { createRequire } from 'module'
 import path from 'path'
 import fs from 'fs'
+import { sendHuaweiPush, isHuaweiPushEnabled, initHuaweiPush } from './huaweiPush.js'
 
 const require = createRequire(import.meta.url)
 
@@ -51,12 +52,7 @@ export function initFirebase() {
  * @param {object} payload - { senderNickname, content, conversationId }
  */
 export async function sendPushNotification(token, { senderNickname, content, conversationId }) {
-  if (!messaging || !token) {
-    console.log(`[FCM] 跳过推送: messaging=${!!messaging}, token=${!!token}`)
-    return false
-  }
-
-  console.log(`[FCM] 准备推送 → token=${token.slice(0, 20)}..., sender=${senderNickname}, convId=${conversationId}`)
+  if (!messaging || !token) return false
 
   try {
     const truncatedContent = content.length > 100 ? content.slice(0, 100) + '...' : content
@@ -80,16 +76,14 @@ export async function sendPushNotification(token, { senderNickname, content, con
         }
       }
     })
-    console.log(`[FCM] 推送成功 ✓ → token=${token.slice(0, 20)}...`)
     return true
   } catch (e) {
-    // token 失效时清理（常见于卸载重装）
     if (e.code === 'messaging/registration-token-not-registered' ||
         e.code === 'messaging/invalid-registration-token') {
-      console.log(`[FCM] token 已失效，需清理: ${token.slice(0, 20)}...`)
+      console.log(`[FCM] token 已失效: ${token.slice(0, 20)}...`)
       return 'token_invalid'
     }
-    console.warn('[FCM] 推送发送失败:', e.message)
+    console.warn('[FCM] 推送失败:', e.message)
     return false
   }
 }
@@ -99,4 +93,34 @@ export async function sendPushNotification(token, { senderNickname, content, con
  */
 export function isFcmEnabled() {
   return messaging !== null
+}
+
+/**
+ * 统一推送入口：根据平台路由到 FCM 或 Push Kit
+ * @param {string} token - 推送 token
+ * @param {string} platform - 'android' | 'harmony' | 其他
+ * @param {object} payload - { senderNickname, content, conversationId }
+ */
+export async function sendPush(token, platform, payload) {
+  if (platform === 'harmony') {
+    return sendHuaweiPush(token, payload)
+  }
+  return sendPushNotification(token, payload) // 现有 FCM
+}
+
+/**
+ * 统一初始化所有推送通道
+ */
+export function initPush() {
+  const fcm = initFirebase()
+  const pushkit = initHuaweiPush()
+  return { fcm, pushkit }
+}
+
+/**
+ * 检查指定平台的推送是否可用
+ */
+export function isPushEnabled(platform) {
+  if (platform === 'harmony') return isHuaweiPushEnabled()
+  return isFcmEnabled()
 }

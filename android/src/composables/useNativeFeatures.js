@@ -88,8 +88,10 @@ export async function startForegroundService() {
       body: '聊天连接保持中',
       smallIcon: 'ic_stat_notify',
     })
+    return { success: true }
   } catch (e) {
-    console.warn('前台服务启动失败:', e)
+    console.error('[fg-service] 启动失败:', e?.message || e)
+    return { success: false, error: e?.message || String(e) }
   }
 }
 
@@ -97,29 +99,40 @@ export async function stopForegroundService() {
   try {
     await ForegroundService.stopForegroundService()
   } catch (e) {
-    console.warn('前台服务停止失败:', e)
+    // 服务未运行时停止会抛异常，可忽略
   }
 }
 
 // GMS 可用性检测
 let gmsAvailable = null // null=未检测, true=有GMS, false=无GMS
 
+// 带超时的 Promise 包装
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} 超时(${ms}ms)`)), ms)
+    )
+  ])
+}
+
 /**
  * 检测 GMS 可用性。通过尝试获取 FCM token 判断：
  * - 成功获取 token → 有 GMS
  * - 返回 null 或抛异常 → 无 GMS（保守降级）
  * 结果缓存，同一会话内不重复检测。
+ * 加入 5 秒超时，防止在无 GMS 环境中挂起。
  */
 export async function checkGmsAvailability() {
   if (gmsAvailable !== null) {
     return { hasGms: gmsAvailable, token: gmsAvailable ? await getFcmToken() : null }
   }
   try {
-    const token = await getFcmToken()
+    const token = await withTimeout(getFcmToken(), 5000, 'GMS检测')
     gmsAvailable = !!token
     return { hasGms: gmsAvailable, token }
   } catch (e) {
-    console.warn('GMS 检测失败，降级为无 GMS:', e)
+    console.warn('[gms] 检测失败，降级为无 GMS:', e?.message || e)
     gmsAvailable = false
     return { hasGms: false, token: null }
   }

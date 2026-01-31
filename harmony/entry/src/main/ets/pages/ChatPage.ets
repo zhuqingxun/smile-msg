@@ -15,6 +15,7 @@ export struct ChatPage {
 
   @State targetInput: string = ''
   @State messageInput: string = ''
+  @State messageList: ChatMessage[] = []
 
   private scroller: Scroller = new Scroller()
 
@@ -66,7 +67,7 @@ export struct ChatPage {
 
       // 消息列表
       List({ scroller: this.scroller }) {
-        ForEach(this.parsedMessages, (msg: ChatMessage) => {
+        ForEach(this.messageList, (msg: ChatMessage) => {
           ListItem() {
             if (msg.type === 'system') {
               // 系统消息
@@ -111,6 +112,7 @@ export struct ChatPage {
           .enabled(this.phase === 'chat' && !this.peerIsOffline)
           .onChange((value: string) => { this.messageInput = value })
           .onSubmit(() => { this.handleSend() })
+          .onFocus(() => { this.scrollToBottom() })
 
         Button('发送')
           .height(40)
@@ -129,32 +131,43 @@ export struct ChatPage {
     .backgroundColor('#ffffff')
   }
 
-  get parsedMessages(): ChatMessage[] {
-    try {
-      return JSON.parse(this.messagesJson) as ChatMessage[]
-    } catch {
-      return []
-    }
-  }
-
-  // 消息列表变化时自动滚动到底部
+  // 消息列表变化时解析 JSON 并更新 @State 数组
   onMessagesChange(): void {
-    const msgs = this.parsedMessages
-    if (msgs.length > 0) {
+    try {
+      if (this.messagesJson) {
+        this.messageList = JSON.parse(this.messagesJson) as ChatMessage[]
+      } else {
+        this.messageList = []
+      }
+    } catch {
+      this.messageList = []
+    }
+    if (this.messageList.length > 0) {
       setTimeout(() => {
-        this.scroller.scrollToIndex(msgs.length - 1)
+        this.scroller.scrollToIndex(this.messageList.length - 1)
       }, 50)
     }
   }
 
   aboutToAppear(): void {
-    // 初始化时也滚动到底部
-    this.onMessagesChange()
+    // 初始化时从 AppStorage 同步消息列表
+    if (this.messagesJson) {
+      this.onMessagesChange()
+    }
   }
 
   async handleConnect(): Promise<void> {
     if (!this.targetInput.trim() || this.targetInput.length > 20) return
     await createChat(this.targetInput)
+  }
+
+  scrollToBottom(): void {
+    if (this.messageList.length > 0) {
+      // 延迟等待键盘弹出后布局完成
+      setTimeout(() => {
+        this.scroller.scrollToIndex(this.messageList.length - 1)
+      }, 150)
+    }
   }
 
   handleSend(): void {

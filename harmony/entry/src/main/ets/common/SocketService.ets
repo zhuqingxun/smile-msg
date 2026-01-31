@@ -144,7 +144,7 @@ function handleMessage(raw: string | ArrayBuffer): void {
 
   const type = msg['type'] as string
 
-  // 心跳
+  // 心跳（不打日志，避免刷屏）
   if (type === 'ping') {
     wsSend(buildMsg('pong'))
     return
@@ -177,7 +177,8 @@ function handleServerEvent(event: string, data: Record<string, Object>): void {
     case 'new_message': {
       const convId = data['conversationId'] as string
       const message = data['message'] as ChatMessage
-      if (convId === AppStorage.get<string>('conversationId')) {
+      const myConvId = AppStorage.get<string>('conversationId') || ''
+      if (convId === myConvId) {
         addMessage(message)
         // 触发原生反馈（振动/通知）
         onNewMessageReceived(message)
@@ -417,7 +418,8 @@ export async function createChat(targetNickname: string): Promise<ActionResult> 
     AppStorage.set('loading', false)
 
     if (res['success']) {
-      AppStorage.set('conversationId', (res['conversationId'] as string) || '')
+      const convId = (res['conversationId'] as string) || ''
+      AppStorage.set('conversationId', convId)
       const target = res['target'] as Record<string, string>
       AppStorage.set('peerNickname', target['nickname'] || '')
       AppStorage.set('phase', 'chat')

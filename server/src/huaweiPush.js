@@ -87,7 +87,9 @@ export async function sendHuaweiPush(token, { senderNickname, content, conversat
           }),
           android: {
             notification: {
-              click_action: { type: 1 }
+              click_action: { type: 1 },
+              foreground_show: false,
+              category: 'IM'
             }
           }
         }

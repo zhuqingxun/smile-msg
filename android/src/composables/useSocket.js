@@ -9,7 +9,9 @@ import {
   clearSession,
   startForegroundService,
   stopForegroundService,
-  getFcmToken,
+  checkGmsAvailability,
+  getPushStrategy,
+  STRATEGY_FOREGROUND_SERVICE,
   onFcmTokenRefresh,
   removeFcmTokenRefreshListener
 } from './useNativeFeatures.js'
@@ -53,36 +55,51 @@ function onNewMessage(message) {
   }
 }
 
-// 获取并上报 FCM token
-async function registerPushToken() {
+// GMS 检测 + 推送策略决策 + 条件启动前台服务 + FCM 注册
+async function registerPushAndDecideStrategy() {
   if (!socket || !socket.connected) {
-    console.warn('[FCM-client] registerPushToken 跳过: socket未就绪')
+    console.warn('[push] registerPushAndDecideStrategy 跳过: socket未就绪')
     return
   }
 
   try {
-    const token = await getFcmToken()
+    // 1. GMS 检测（含 FCM token 获取，结果缓存）
+    const { hasGms, token } = await checkGmsAvailability()
+
+    // 2. 上报 FCM token（如果有）
     const tokenInfo = token ? `${token.slice(0, 20)}...` : 'null'
-    console.log('[FCM-client] getFcmToken 结果:', tokenInfo)
+    console.log('[push] GMS检测结果:', hasGms, 'token:', tokenInfo)
     socket.emit('client_log', { tag: 'FCM-client', message: `getFcmToken=${tokenInfo}` })
 
     if (token) {
       socket.emit('register_push_token', { token })
-    } else {
-      socket.emit('client_log', { tag: 'FCM-client', message: 'token 为 null，推送不可用' })
+    }
+
+    // 3. 决定推送策略
+    const strategy = hasGms ? 'fcm' : await getPushStrategy()
+
+    // 4. 上报策略选择
+    socket.emit('client_log', { tag: 'push-strategy', message: `GMS=${hasGms}, strategy=${strategy}` })
+    console.log('[push] 策略选择:', `GMS=${hasGms}, strategy=${strategy}`)
+
+    // 5. 根据策略条件启动前台服务
+    if (!hasGms && strategy === STRATEGY_FOREGROUND_SERVICE) {
+      startForegroundService()
+    }
+
+    // 6. Token 刷新监听（仅有 GMS 时有意义）
+    if (hasGms) {
+      onFcmTokenRefresh((newToken) => {
+        console.log('[push] token 刷新:', newToken?.slice(0, 20))
+        if (socket && socket.connected) {
+          socket.emit('register_push_token', { token: newToken })
+        }
+      })
     }
   } catch (e) {
-    console.error('[FCM-client] registerPushToken 异常:', e)
-    socket.emit('client_log', { tag: 'FCM-client', message: `异常: ${e.message || e}` })
+    console.error('[push] registerPushAndDecideStrategy 异常:', e)
+    socket.emit('client_log', { tag: 'push-strategy', message: `异常: ${e.message || e}` })
   }
-
-  // 监听 token 刷新
-  onFcmTokenRefresh((newToken) => {
-    console.log('[FCM-client] token 刷新:', newToken?.slice(0, 20))
-    if (socket && socket.connected) {
-      socket.emit('register_push_token', { token: newToken })
-    }
-  })
 }
 
 function initSocket() {
@@ -119,9 +136,9 @@ function initSocket() {
           phase.value = res.target ? 'chat' : 'idle'
           peerIsOffline.value = false
         }
-        // 重连后重新上报 FCM token
+        // 重连后重新执行推送策略
         if (res.success) {
-          registerPushToken()
+          registerPushAndDecideStrategy()
         }
       })
     }
@@ -194,10 +211,9 @@ function login(nickname) {
           } else {
             phase.value = 'idle'
           }
-          // 登录成功后持久化会话并启动前台服务
+          // 登录成功后持久化会话，检测 GMS 并按策略分流
           saveSession(myUuid.value, myNickname.value)
-          startForegroundService()
-          registerPushToken()
+          registerPushAndDecideStrategy()
           resolve({ success: true })
         } else {
           error.value = res.error

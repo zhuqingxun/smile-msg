@@ -101,6 +101,48 @@ export async function stopForegroundService() {
   }
 }
 
+// GMS 可用性检测
+let gmsAvailable = null // null=未检测, true=有GMS, false=无GMS
+
+/**
+ * 检测 GMS 可用性。通过尝试获取 FCM token 判断：
+ * - 成功获取 token → 有 GMS
+ * - 返回 null 或抛异常 → 无 GMS（保守降级）
+ * 结果缓存，同一会话内不重复检测。
+ */
+export async function checkGmsAvailability() {
+  if (gmsAvailable !== null) {
+    return { hasGms: gmsAvailable, token: gmsAvailable ? await getFcmToken() : null }
+  }
+  try {
+    const token = await getFcmToken()
+    gmsAvailable = !!token
+    return { hasGms: gmsAvailable, token }
+  } catch (e) {
+    console.warn('GMS 检测失败，降级为无 GMS:', e)
+    gmsAvailable = false
+    return { hasGms: false, token: null }
+  }
+}
+
+export function getGmsStatus() {
+  return gmsAvailable
+}
+
+// 推送策略配置
+const PUSH_STRATEGY_KEY = 'push_strategy'
+export const STRATEGY_FOREGROUND_SERVICE = 'foreground_service'
+export const STRATEGY_PASSIVE = 'passive'
+
+export async function getPushStrategy() {
+  const { value } = await Preferences.get({ key: PUSH_STRATEGY_KEY })
+  return value || STRATEGY_FOREGROUND_SERVICE
+}
+
+export async function setPushStrategy(strategy) {
+  await Preferences.set({ key: PUSH_STRATEGY_KEY, value: strategy })
+}
+
 // FCM 推送：获取当前 token
 export async function getFcmToken() {
   try {

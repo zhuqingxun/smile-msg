@@ -2,6 +2,7 @@
 
 import { vibrator } from '@kit.SensorServiceKit'
 import { notificationManager } from '@kit.NotificationKit'
+import notification from '@ohos.notification'
 import { wantAgent, WantAgent, common } from '@kit.AbilityKit'
 import { BusinessError } from '@kit.BasicServicesKit'
 
@@ -84,7 +85,7 @@ export async function publishLocalNotification(senderNickname: string, content: 
     // 发布通知
     const request: notificationManager.NotificationRequest = {
       id: notificationId++,
-      slotType: notificationManager.SlotType.SOCIAL_COMMUNICATION,
+      slotType: notification.SlotType.SOCIAL_COMMUNICATION,
       content: {
         notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
         normal: {

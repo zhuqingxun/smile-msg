@@ -3,15 +3,16 @@ let tokenExpiry = 0
 
 const HUAWEI_APP_ID = process.env.HUAWEI_APP_ID
 const HUAWEI_APP_SECRET = process.env.HUAWEI_APP_SECRET
+const HUAWEI_PROJECT_ID = process.env.HUAWEI_PROJECT_ID
 const HUAWEI_AUTH_URL = process.env.HUAWEI_AUTH_URL || 'https://oauth-login.cloud.huawei.com/oauth2/v3/token'
-const HUAWEI_PUSH_URL = process.env.HUAWEI_PUSH_URL || (HUAWEI_APP_ID ? `https://push-api.cloud.huawei.com/v2/${HUAWEI_APP_ID}/messages:send` : null)
+const HUAWEI_PUSH_URL = process.env.HUAWEI_PUSH_URL || (HUAWEI_PROJECT_ID ? `https://push-api.cloud.huawei.com/v2/${HUAWEI_PROJECT_ID}/messages:send` : null)
 
 /**
  * 初始化 Push Kit（检查环境变量）
  */
 export function initHuaweiPush() {
-  if (!HUAWEI_APP_ID || !HUAWEI_APP_SECRET) {
-    console.warn('[PushKit] HUAWEI_APP_ID 或 HUAWEI_APP_SECRET 未配置，Push Kit 推送禁用')
+  if (!HUAWEI_APP_ID || !HUAWEI_APP_SECRET || !HUAWEI_PROJECT_ID) {
+    console.warn('[PushKit] HUAWEI_APP_ID、HUAWEI_APP_SECRET 或 HUAWEI_PROJECT_ID 未配置，Push Kit 推送禁用')
     return false
   }
   console.log('[PushKit] 华为 Push Kit 配置就绪')
@@ -19,7 +20,7 @@ export function initHuaweiPush() {
 }
 
 export function isHuaweiPushEnabled() {
-  return !!HUAWEI_APP_ID && !!HUAWEI_APP_SECRET
+  return !!HUAWEI_APP_ID && !!HUAWEI_APP_SECRET && !!HUAWEI_PROJECT_ID
 }
 
 /**

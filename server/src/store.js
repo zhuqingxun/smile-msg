@@ -48,6 +48,7 @@ export function registerUser(uuid, nickname, socketId, platform) {
     pushToken: existingUser?.pushToken || null,
     loginTime: existingUser?.loginTime || Date.now(),
     platform,
+    inBackground: existingUser?.inBackground || false,
   })
   // 仅当 socketId 非空时写入映射（WS 连接不需要此映射）
   if (socketId) {

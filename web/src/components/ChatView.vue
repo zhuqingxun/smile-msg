@@ -3,7 +3,7 @@ import { ref, watch, nextTick, computed } from 'vue'
 import { useSocket } from '../composables/useSocket.js'
 
 const {
-  phase, myUuid, peerNickname, peerIsOffline, messages, error, loading,
+  phase, myUuid, myNickname, peerNickname, peerIsOffline, messages, error, loading,
   createChat, sendMessage, leaveConversation
 } = useSocket()
 
@@ -70,7 +70,7 @@ watch(messages, async () => {
         </button>
       </template>
       <template v-else>
-        <span class="flex-1 font-medium text-gray-800">{{ peerNickname }}</span>
+        <span class="flex-1 font-medium text-gray-800">{{ myNickname }} &lt;--&gt; {{ peerNickname }}</span>
         <button
           class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
           @click="handleDisconnect"

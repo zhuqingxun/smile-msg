@@ -57,6 +57,7 @@ export async function sendPushNotification(token, { senderNickname, content, con
   try {
     const truncatedContent = content.length > 100 ? content.slice(0, 100) + '...' : content
 
+    console.log(`[FCM] 推送发送: token=${token.slice(0, 20)}...`)
     await messaging.send({
       token,
       notification: {
@@ -102,6 +103,7 @@ export function isFcmEnabled() {
  * @param {object} payload - { senderNickname, content, conversationId }
  */
 export async function sendPush(token, platform, payload) {
+  console.log(`[push] 推送路由: platform=${platform}, channel=${platform === 'harmony' ? 'PushKit' : 'FCM'}`)
   if (platform === 'harmony') {
     return sendHuaweiPush(token, payload)
   }
@@ -114,6 +116,7 @@ export async function sendPush(token, platform, payload) {
 export function initPush() {
   const fcm = initFirebase()
   const pushkit = initHuaweiPush()
+  console.log(`[push] 推送通道初始化: fcm=${fcm}, pushkit=${pushkit}`)
   return { fcm, pushkit }
 }
 

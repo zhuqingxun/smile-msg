@@ -27,12 +27,14 @@ export function registerUser(uuid, nickname, socketId, platform) {
   // 检查昵称是否被其他 UUID 占用
   const existingUuid = nicknameToUuid.get(nickname)
   if (existingUuid && existingUuid !== uuid) {
+    console.warn(`[store] 注册失败-昵称冲突: nickname=${nickname}, 占用方=${existingUuid.slice(0, 8)}`)
     return { success: false, error: '昵称已被使用' }
   }
 
   // 重连时取消宽限定时器
   const pendingTimer = disconnectTimers.get(uuid)
   if (pendingTimer) {
+    console.log(`[store] 重连取消宽限期: uuid=${uuid.slice(0, 8)}`)
     clearTimeout(pendingTimer)
     disconnectTimers.delete(uuid)
   }
@@ -55,6 +57,7 @@ export function registerUser(uuid, nickname, socketId, platform) {
     socketToUser.set(socketId, uuid)
   }
   nicknameToUuid.set(nickname, uuid)
+  console.log(`[store] 用户注册: uuid=${uuid.slice(0, 8)}, nickname=${nickname}, platform=${platform}`)
 
   return { success: true, oldSocketId }
 }
@@ -78,6 +81,7 @@ export function removeUser(socketId) {
 
   const { nickname, conversationId } = user
 
+  console.log(`[store] 用户移除: uuid=${uuid.slice(0, 8)}, nickname=${nickname}`)
   socketToUser.delete(socketId)
   users.delete(uuid)
   nicknameToUuid.delete(nickname)
@@ -102,6 +106,7 @@ export function removeUser(socketId) {
 export function createConversation(uuid1, uuid2) {
   const id = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   conversations.set(id, { members: new Set([uuid1, uuid2]) })
+  console.log(`[store] 会话创建: convId=${id}, members=${uuid1.slice(0, 8)}+${uuid2.slice(0, 8)}`)
 
   const user1 = users.get(uuid1)
   const user2 = users.get(uuid2)

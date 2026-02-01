@@ -41,6 +41,7 @@ export function handleWsConnection(ws, req, io) {
     try {
       msg = JSON.parse(raw.toString())
     } catch {
+      console.warn(`[ws] 消息解析失败`)
       return
     }
 
@@ -60,12 +61,16 @@ export function handleWsConnection(ws, req, io) {
     }
 
     // login 之前的其他事件忽略
-    if (!userUuid && event !== 'login') return
+    if (!userUuid && event !== 'login') {
+      console.warn(`[ws] 未认证事件被忽略: event=${event}`)
+      return
+    }
 
     switch (event) {
       case 'login': {
         const result = loginLogic(data.uuid, data.nickname, null, platform)
         if (!result.success) {
+          console.warn(`[ws] 登录失败: uuid=${data.uuid?.slice(0, 8) || 'N/A'}, error=${result.error}`)
           ack({ success: false, error: result.error })
           break
         }
@@ -75,6 +80,7 @@ export function handleWsConnection(ws, req, io) {
         // 踢掉旧 WS 连接（如果有）
         const oldWs = wsConnections.get(userUuid)
         if (oldWs && oldWs !== ws && oldWs.readyState === 1) {
+          console.log(`[ws] 踢旧连接: uuid=${userUuid.slice(0, 8)}`)
           oldWs.send(JSON.stringify({ type: 'event', event: 'force_disconnect', data: { reason: '账号在其他地方登录' } }))
           oldWs.close()
         }
@@ -93,6 +99,7 @@ export function handleWsConnection(ws, req, io) {
 
         // 补发离线消息
         if (result.offlineMessages) {
+          console.log(`[ws] 补发离线消息: uuid=${userUuid.slice(0, 8)}, count=${result.offlineMessages.length}`)
           setTimeout(() => {
             for (const msg of result.offlineMessages) {
               if (ws.readyState === 1) {
@@ -103,6 +110,7 @@ export function handleWsConnection(ws, req, io) {
         }
 
         if (result.restored) {
+          console.log(`[ws] 会话恢复: uuid=${userUuid.slice(0, 8)}, convId=${result.conversationId}`)
           ack({
             success: true, restored: true,
             conversationId: result.conversationId,
@@ -117,9 +125,11 @@ export function handleWsConnection(ws, req, io) {
       case 'create_private_chat': {
         const result = createChatLogic(userUuid, data.targetNickname)
         if (!result.success) {
+          console.warn(`[ws] 创建私聊失败: target=${data.targetNickname}, error=${result.error}`)
           ack({ success: false, error: result.error })
           break
         }
+        console.log(`[ws] 私聊创建成功: convId=${result.conversationId}, initiator=${result.initiatorNickname}, target=${data.targetNickname}`)
 
         // 通知被连接方（通过桥接层，Socket.io 和 WS 用户都能收到）
         sendToUser(result.targetUuid, 'conversation_created', {
@@ -179,6 +189,7 @@ export function handleWsConnection(ws, req, io) {
 
   // error 事件后 ws 会自动触发 close 事件，用户清理由 close handler 完成
   ws.on('error', () => {
+    console.warn(`[ws] 连接错误: uuid=${userUuid?.slice(0, 8) || 'N/A'}`)
     clearInterval(heartbeatInterval)
   })
 }

@@ -5,11 +5,13 @@ export const wsConnections = new Map()
 
 // 注册 WS 连接
 export function registerWsConnection(uuid, ws) {
+  console.log(`[bridge] WS连接注册: uuid=${uuid.slice(0, 8)}`)
   wsConnections.set(uuid, ws)
 }
 
 // 移除 WS 连接
 export function removeWsConnection(uuid) {
+  console.log(`[bridge] WS连接移除: uuid=${uuid.slice(0, 8)}`)
   wsConnections.delete(uuid)
 }
 
@@ -35,6 +37,7 @@ export function sendToUser(uuid, event, data, io) {
     return true
   }
 
+  console.warn(`[bridge] 消息投递失败-无可用通道: uuid=${uuid.slice(0, 8)}, event=${event}`)
   return false
 }
 
@@ -67,6 +70,7 @@ export function hasActiveConnection(uuid) {
  * 先移除映射再关闭连接，防止 close 回调触发 disconnectLogic
  */
 export function closeWsConnection(uuid, reason) {
+  console.log(`[bridge] 管理员踢出WS: uuid=${uuid.slice(0, 8)}, reason=${reason}`)
   const ws = wsConnections.get(uuid)
   wsConnections.delete(uuid)
   if (ws && ws.readyState === 1) {

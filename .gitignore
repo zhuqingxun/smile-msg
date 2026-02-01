@@ -33,3 +33,5 @@ harmony/.idea/
 harmony/oh_modules/
 harmony/local.properties
 harmony/build-profile.json5
+# AGConnect 配置（含密钥）
+harmony/entry/src/main/resources/rawfile/agconnect-services.json

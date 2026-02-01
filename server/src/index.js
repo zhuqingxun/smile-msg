@@ -33,6 +33,7 @@ function escapeHtml(str) {
 // 托管 Web 客户端静态文件（生产环境）
 const webDistPath = join(__dirname, '../../web/dist')
 if (existsSync(webDistPath)) {
+  console.log(`[server] Web静态资源已挂载: path=${webDistPath}`)
   app.use(express.static(webDistPath))
 }
 
@@ -128,6 +129,8 @@ app.post('/admin/kick', express.urlencoded({ extended: false }), (req, res) => {
 
   const target = kickUser(uuid)
   if (target) {
+    const connType = target.socketId ? 'Socket.io' : 'WebSocket'
+    console.log(`[admin] 踢出用户: uuid=${uuid.slice(0, 8)}, nickname=${target.nickname}, 连接类型=${connType}`)
     if (target.socketId) {
       // Socket.io 用户：通知并断开
       io.to(target.socketId).emit('force_disconnect', { reason: '被管理员踢出' })
@@ -141,6 +144,9 @@ app.post('/admin/kick', express.urlencoded({ extended: false }), (req, res) => {
 
   // 无论有无 socket，都清理用户数据（处理断连宽限期中的用户）
   const user = users.get(uuid)
+  if (!target && !user) {
+    console.warn(`[admin] 踢出失败-用户不存在: uuid=${uuid.slice(0, 8)}`)
+  }
   if (user) {
     const timer = disconnectTimers.get(uuid)
     if (timer) {

@@ -14,16 +14,21 @@ function parsePlatform(ua) {
 }
 
 export function setupChatHandlers(io, socket) {
+  console.log(`[sio] 新连接: socketId=${socket.id}`)
 
   socket.on('login', ({ uuid, nickname }, callback) => {
     const ua = socket.handshake.headers['user-agent'] || ''
     const platform = parsePlatform(ua)
     const result = handleLogin(uuid, nickname, socket.id, platform)
 
-    if (!result.success) return callback({ success: false, error: result.error })
+    if (!result.success) {
+      console.warn(`[sio] 登录失败: socketId=${socket.id}, error=${result.error}`)
+      return callback({ success: false, error: result.error })
+    }
 
     // Socket.io 特有：踢掉旧连接
     if (result.oldSocketId && result.oldSocketId !== socket.id) {
+      console.log(`[sio] 踢旧连接: oldSocketId=${result.oldSocketId}`)
       io.to(result.oldSocketId).emit('force_disconnect', { reason: '账号在其他地方登录' })
       const oldSocket = io.sockets.sockets.get(result.oldSocketId)
       if (oldSocket) oldSocket.disconnect(true)
@@ -31,6 +36,7 @@ export function setupChatHandlers(io, socket) {
 
     // Socket.io 特有：延迟补发离线消息
     if (result.offlineMessages) {
+      console.log(`[sio] 补发离线消息: socketId=${socket.id}, count=${result.offlineMessages.length}`)
       setTimeout(() => {
         for (const msg of result.offlineMessages) {
           socket.emit('new_message', msg)
@@ -40,6 +46,7 @@ export function setupChatHandlers(io, socket) {
 
     // Socket.io 特有：加入房间（保留 room 机制作为冗余）
     if (result.restored && result.conversationId) {
+      console.log(`[sio] 会话恢复: socketId=${socket.id}, convId=${result.conversationId}`)
       socket.join(result.conversationId)
       return callback({
         success: true, restored: true,
@@ -55,7 +62,11 @@ export function setupChatHandlers(io, socket) {
     const uuid = socketToUser.get(socket.id)
     const result = handleCreatePrivateChat(uuid, targetNickname)
 
-    if (!result.success) return callback({ success: false, error: result.error })
+    if (!result.success) {
+      console.warn(`[sio] 创建私聊失败: target=${targetNickname}, error=${result.error}`)
+      return callback({ success: false, error: result.error })
+    }
+    console.log(`[sio] 私聊创建成功: convId=${result.conversationId}, initiator=${result.initiatorNickname}, target=${targetNickname}`)
 
     // Socket.io 特有：双方加入房间
     socket.join(result.conversationId)
@@ -85,6 +96,7 @@ export function setupChatHandlers(io, socket) {
 
   socket.on('leave_conversation', ({ conversationId }, callback) => {
     const uuid = socketToUser.get(socket.id)
+    console.log(`[sio] 离开会话: uuid=${uuid?.slice(0, 8) || 'N/A'}, convId=${conversationId}`)
     const result = handleLeaveConversation(uuid, conversationId, io)
     socket.leave(conversationId)  // Socket.io 特有：离开房间
     callback?.({ success: result.success })

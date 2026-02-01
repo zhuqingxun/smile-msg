@@ -61,7 +61,11 @@ async function getAccessToken() {
  * @returns {Promise<boolean|'token_invalid'>}
  */
 export async function sendHuaweiPush(token, { senderNickname, content, conversationId }) {
-  if (!isHuaweiPushEnabled() || !token) return false
+  if (!isHuaweiPushEnabled() || !token) {
+    console.log(`[PushKit] 推送跳过: enabled=${isHuaweiPushEnabled()}, hasToken=${!!token}`)
+    return false
+  }
+  console.log(`[PushKit] 推送请求发出: token=${token.slice(0, 20)}..., sender=${senderNickname}`)
 
   try {
     const at = await getAccessToken()

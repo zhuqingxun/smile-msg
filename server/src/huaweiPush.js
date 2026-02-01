@@ -105,11 +105,11 @@ export async function sendHuaweiPush(token, { senderNickname, content, conversat
 
     // Token 失效处理
     if (result.code === '80100003' || result.code === '80300007') {
-      console.log(`[PushKit] token 已失效: ${token.slice(0, 20)}...`)
+      console.log(`[PushKit] token 已失效: code=${result.code}, msg=${result.msg}, token=${token.slice(0, 20)}...`)
       return 'token_invalid'
     }
 
-    console.warn(`[PushKit] 推送失败: code=${result.code}, msg=${result.msg}`)
+    console.warn(`[PushKit] 推送失败: code=${result.code}, msg=${result.msg}, requestId=${result.requestId || 'N/A'}`)
     return false
   } catch (e) {
     console.warn('[PushKit] 推送异常:', e.message)

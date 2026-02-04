@@ -57,24 +57,87 @@ export function initHuaweiPush() {
     return false
   }
 
+  // ===== 诊断区域：启动时一次性输出所有关键信息 =====
+  console.log(`[PushKit][diag] Node=${process.version}, OpenSSL=${process.versions.openssl}`)
+  console.log(`[PushKit][diag] 环境变量长度=${raw.length}, 前40字符=${JSON.stringify(raw.slice(0, 40))}`)
+
+  let parsed
   try {
-    serviceAccount = JSON.parse(raw)
-    const required = ['project_id', 'key_id', 'private_key', 'sub_account', 'token_uri']
-    const missing = required.filter(k => !serviceAccount[k])
-    if (missing.length > 0) {
-      console.warn(`[PushKit] HUAWEI_SERVICE_ACCOUNT 缺少必要字段: ${missing.join(', ')}`)
-      serviceAccount = null
-      return false
-    }
-    // 环境变量传输可能导致 PEM 换行符被转义为字面量 \n
-    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n')
-    console.log('[PushKit] 华为 Push Kit V3 (Service Account JWT) 配置就绪')
-    return true
+    parsed = JSON.parse(raw)
   } catch (e) {
-    console.warn('[PushKit] HUAWEI_SERVICE_ACCOUNT JSON 解析失败:', e.message)
+    console.error(`[PushKit][diag] JSON.parse 失败: ${e.message}`)
+    console.error(`[PushKit][diag] 原始值前200字符: ${JSON.stringify(raw.slice(0, 200))}`)
     serviceAccount = null
     return false
   }
+
+  const required = ['project_id', 'key_id', 'private_key', 'sub_account', 'token_uri']
+  const missing = required.filter(k => !parsed[k])
+  if (missing.length > 0) {
+    console.warn(`[PushKit] HUAWEI_SERVICE_ACCOUNT 缺少必要字段: ${missing.join(', ')}`)
+    serviceAccount = null
+    return false
+  }
+
+  console.log(`[PushKit][diag] key_id=${parsed.key_id}, sub_account=${parsed.sub_account}`)
+
+  // 私钥诊断
+  let pk = parsed.private_key
+  console.log(`[PushKit][diag] private_key 长度=${pk.length}`)
+  console.log(`[PushKit][diag] private_key 前60字符=${JSON.stringify(pk.slice(0, 60))}`)
+  console.log(`[PushKit][diag] private_key 后60字符=${JSON.stringify(pk.slice(-60))}`)
+  console.log(`[PushKit][diag] 包含实际换行=${pk.includes('\n')}, 包含字面\\n=${pk.includes('\\n')}`)
+
+  // 修正换行符：环境变量传输可能导致多种转义情况
+  if (!pk.includes('\n') && pk.includes('\\n')) {
+    pk = pk.replace(/\\n/g, '\n')
+    console.log('[PushKit][diag] 已修正: 字面\\n → 实际换行')
+  }
+  parsed.private_key = pk
+
+  // 尝试用 crypto 解析私钥
+  try {
+    const keyObj = crypto.createPrivateKey(pk)
+    console.log(`[PushKit][diag] crypto 解析成功: type=${keyObj.type}, algo=${keyObj.asymmetricKeyType}`)
+  } catch (e) {
+    console.error(`[PushKit][diag] crypto 解析失败: ${e.message}`)
+    console.error(`[PushKit][diag] 私钥 PEM 头=${JSON.stringify(pk.slice(0, 40))}`)
+    console.error(`[PushKit][diag] 私钥 PEM 尾=${JSON.stringify(pk.slice(-40))}`)
+
+    // 尝试手动重建 PEM（去除所有空白后重新分行）
+    const b64Only = pk.replace(/-----[A-Z ]+-----/g, '').replace(/\s/g, '')
+    const rebuilt = '-----BEGIN PRIVATE KEY-----\n' +
+      b64Only.match(/.{1,64}/g).join('\n') +
+      '\n-----END PRIVATE KEY-----\n'
+    try {
+      crypto.createPrivateKey(rebuilt)
+      console.log('[PushKit][diag] 手动重建 PEM 成功，使用重建后的密钥')
+      parsed.private_key = rebuilt
+    } catch (e2) {
+      console.error(`[PushKit][diag] 手动重建 PEM 也失败: ${e2.message}`)
+      console.error(`[PushKit][diag] base64 长度=${b64Only.length}, 前40=${b64Only.slice(0, 40)}`)
+      serviceAccount = null
+      return false
+    }
+  }
+
+  // 尝试实际签名测试
+  try {
+    const testSig = crypto.sign('sha256', Buffer.from('test'), {
+      key: parsed.private_key,
+      padding: crypto.constants.RSA_PKCS1_PADDING
+    })
+    console.log(`[PushKit][diag] RS256 签名测试成功, 签名长度=${testSig.length}`)
+  } catch (e) {
+    console.error(`[PushKit][diag] RS256 签名测试失败: ${e.message}`)
+    serviceAccount = null
+    return false
+  }
+  // ===== 诊断区域结束 =====
+
+  serviceAccount = parsed
+  console.log('[PushKit] 华为 Push Kit V3 (Service Account JWT) 配置就绪')
+  return true
 }
 
 export function isHuaweiPushEnabled() {

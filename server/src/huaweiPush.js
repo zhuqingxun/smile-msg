@@ -66,6 +66,8 @@ export function initHuaweiPush() {
       serviceAccount = null
       return false
     }
+    // 环境变量传输可能导致 PEM 换行符被转义为字面量 \n
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n')
     console.log('[PushKit] 华为 Push Kit V3 (Service Account JWT) 配置就绪')
     return true
   } catch (e) {

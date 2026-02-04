@@ -17,13 +17,13 @@ function base64url(data) {
 }
 
 /**
- * 生成 Service Account JWT（PS256 签名）
+ * 生成 Service Account JWT（RS256 签名）
  */
 function generateJWT() {
   const now = Math.floor(Date.now() / 1000)
 
   const header = {
-    alg: 'PS256',
+    alg: 'RS256',
     typ: 'JWT',
     kid: serviceAccount.key_id
   }
@@ -41,8 +41,7 @@ function generateJWT() {
 
   const signature = crypto.sign('sha256', Buffer.from(signingInput), {
     key: serviceAccount.private_key,
-    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-    saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
+    padding: crypto.constants.RSA_PKCS1_PADDING
   })
 
   return `${signingInput}.${base64url(signature)}`

@@ -2,11 +2,11 @@
 import { ref } from 'vue'
 import { useSocket } from '../composables/useSocket.js'
 
-const { error, loading, login } = useSocket()
+const { error, loading, login, clientConfig } = useSocket()
 const nickname = ref('')
 
 async function handleLogin() {
-  if (!nickname.value.trim() || nickname.value.length > 20) return
+  if (!nickname.value.trim() || nickname.value.length > clientConfig.value.maxNicknameLength) return
   await login(nickname.value)
 }
 </script>
@@ -20,7 +20,7 @@ async function handleLogin() {
         v-model="nickname"
         type="text"
         placeholder="输入你的昵称"
-        maxlength="20"
+        :maxlength="clientConfig.maxNicknameLength"
         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
         :disabled="loading"
         @keyup.enter="handleLogin"

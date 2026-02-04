@@ -1,4 +1,4 @@
-import { users, socketToUser } from '../store.js'
+import { users, socketToUser, runtimeConfig } from '../store.js'
 import { sendToUser } from '../bridge.js'
 import {
   handleLogin, handleCreatePrivateChat, handleSendMessage,
@@ -41,7 +41,7 @@ export function setupChatHandlers(io, socket) {
         for (const msg of result.offlineMessages) {
           socket.emit('new_message', msg)
         }
-      }, 500)
+      }, runtimeConfig.offlineMsgDelayMs)
     }
 
     // Socket.io 特有：加入房间（保留 room 机制作为冗余）
@@ -51,11 +51,12 @@ export function setupChatHandlers(io, socket) {
       return callback({
         success: true, restored: true,
         conversationId: result.conversationId,
-        target: result.target
+        target: result.target,
+        clientConfig: result.clientConfig
       })
     }
 
-    callback({ success: true })
+    callback({ success: true, clientConfig: result.clientConfig })
   })
 
   socket.on('create_private_chat', ({ targetNickname }, callback) => {

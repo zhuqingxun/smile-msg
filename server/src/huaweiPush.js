@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { runtimeConfig } from './store.js'
 
 let serviceAccount = null
 
@@ -137,6 +138,7 @@ export async function sendHuaweiPush(token, { senderNickname, content, conversat
         payload: {
           notification: {
             category: 'IM',
+            importance: runtimeConfig.huaweiImportance,
             title: `${senderNickname} 发来消息`,
             body: truncatedContent,
             clickAction: {

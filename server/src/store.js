@@ -19,6 +19,29 @@ export const disconnectTimes = new Map()
 // 离线消息缓存: uuid → message[]
 export const offlineMessages = new Map()
 
+// 运行时配置（内存，重启恢复默认值）
+export const runtimeConfig = {
+  // 推送
+  huaweiImportance: 'HIGH',       // LOW | NORMAL | HIGH
+  fcmPriority: 'high',            // high | normal
+  // 连接
+  gracePeriodMs: 30 * 60 * 1000,  // 断线宽限期（默认30分钟）
+  heartbeatIntervalMs: 10000,     // WS 心跳间隔（默认10秒）
+  heartbeatMaxMissed: 2,          // 心跳最大丢失次数
+  offlineMsgDelayMs: 500,         // 离线消息补发延迟
+  // 业务限制
+  maxNicknameLength: 20,
+  maxOfflineMessages: 100,
+  maxClientMessages: 200,
+}
+
+export function getClientConfig() {
+  return {
+    maxNicknameLength: runtimeConfig.maxNicknameLength,
+    maxClientMessages: runtimeConfig.maxClientMessages,
+  }
+}
+
 /**
  * 注册用户
  * @returns {{ success: boolean, error?: string, oldSocketId?: string }}
@@ -127,7 +150,6 @@ export function getOnlineNicknames() {
  * 获取所有在线用户详情（管理页面用）
  */
 export function getOnlineUsers() {
-  const GRACE_PERIOD_MS = 30 * 60 * 1000
   const now = Date.now()
   return Array.from(users.entries()).map(([uuid, u]) => {
     let peerNickname = null
@@ -138,7 +160,7 @@ export function getOnlineUsers() {
       status = 'disconnected'
       const disconnectTime = disconnectTimes.get(uuid)
       if (disconnectTime) {
-        graceRemaining = Math.max(0, GRACE_PERIOD_MS - (now - disconnectTime))
+        graceRemaining = Math.max(0, runtimeConfig.gracePeriodMs - (now - disconnectTime))
       }
     } else if (u.conversationId) {
       status = 'chatting'

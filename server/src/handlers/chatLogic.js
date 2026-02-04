@@ -1,12 +1,11 @@
 import {
   registerUser, createConversation,
   users, socketToUser, nicknameToUuid, conversations,
-  disconnectTimers, disconnectTimes, offlineMessages
+  disconnectTimers, disconnectTimes, offlineMessages,
+  runtimeConfig, getClientConfig
 } from '../store.js'
 import { sendToUser, broadcastToConversation, hasActiveConnection } from '../bridge.js'
 import { sendPush, isPushEnabled } from '../push.js'
-
-export const GRACE_PERIOD_MS = 30 * 60 * 1000
 
 /**
  * 清理会话并通知对端（多处共用）
@@ -51,7 +50,7 @@ function trySendPush(peer, payload) {
  */
 export function handleLogin(uuid, nickname, connectionId, platform) {
   const trimmedNickname = nickname?.trim()
-  if (!uuid || !trimmedNickname || trimmedNickname.length > 20) {
+  if (!uuid || !trimmedNickname || trimmedNickname.length > runtimeConfig.maxNicknameLength) {
     console.warn(`[login] 登录参数无效: uuid=${uuid?.slice(0, 8) || 'N/A'}, nickname长度=${trimmedNickname?.length ?? 0}`)
     return { success: false, error: '昵称无效' }
   }
@@ -84,12 +83,13 @@ export function handleLogin(uuid, nickname, connectionId, platform) {
         conversationId: user.conversationId,
         target: peer ? { uuid: peerUuid, nickname: peer.nickname } : null,
         oldSocketId: result.oldSocketId,
-        offlineMessages: pendingList
+        offlineMessages: pendingList,
+        clientConfig: getClientConfig()
       }
     }
   }
 
-  return { success: true, oldSocketId: result.oldSocketId, offlineMessages: pendingList }
+  return { success: true, oldSocketId: result.oldSocketId, offlineMessages: pendingList, clientConfig: getClientConfig() }
 }
 
 /**
@@ -167,7 +167,7 @@ export function handleSendMessage(uuid, convId, content, io) {
         // 对端离线 → 缓存离线消息
         if (!offlineMessages.has(peerUuid)) offlineMessages.set(peerUuid, [])
         const queue = offlineMessages.get(peerUuid)
-        if (queue.length < 100) queue.push({ conversationId: convId, message })
+        if (queue.length < runtimeConfig.maxOfflineMessages) queue.push({ conversationId: convId, message })
       }
 
       // 离线或后台均尝试推送通知
@@ -262,7 +262,7 @@ export function handleDisconnect(uuid, io) {
     if (deadUser.conversationId) {
       cleanupConversation(uuid, deadUser.conversationId, io)
     }
-  }, GRACE_PERIOD_MS)
+  }, runtimeConfig.gracePeriodMs)
 
   disconnectTimers.set(uuid, timerId)
 }

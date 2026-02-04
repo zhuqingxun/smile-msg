@@ -4,7 +4,7 @@ import { useSocket } from '../composables/useSocket.js'
 
 const {
   phase, myUuid, myNickname, peerNickname, peerIsOffline, messages, error, loading,
-  createChat, sendMessage, leaveConversation
+  clientConfig, createChat, sendMessage, leaveConversation
 } = useSocket()
 
 const targetInput = ref('')
@@ -16,7 +16,7 @@ const isChat = computed(() => phase.value === 'chat')
 const canSend = computed(() => isChat.value && !peerIsOffline.value)
 
 async function handleConnect() {
-  if (!targetInput.value.trim() || targetInput.value.length > 20) return
+  if (!targetInput.value.trim() || targetInput.value.length > clientConfig.value.maxNicknameLength) return
   await createChat(targetInput.value)
 }
 
@@ -56,7 +56,7 @@ watch(messages, async () => {
           v-model="targetInput"
           type="text"
           placeholder="输入对方昵称"
-          maxlength="20"
+          :maxlength="clientConfig.maxNicknameLength"
           class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
           :disabled="loading"
           @keyup.enter="handleConnect"

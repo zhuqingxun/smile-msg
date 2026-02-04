@@ -9,7 +9,7 @@ import { setupChatHandlers } from './handlers/chat.js'
 import { cleanupConversation } from './handlers/chatLogic.js'
 import { handleWsConnection } from './handlers/ws.js'
 import { closeWsConnection } from './bridge.js'
-import { getOnlineUsers, kickUser, removeUser, disconnectTimers, disconnectTimes, users, nicknameToUuid, offlineMessages } from './store.js'
+import { getOnlineUsers, kickUser, removeUser, disconnectTimers, disconnectTimes, users, nicknameToUuid, offlineMessages, runtimeConfig } from './store.js'
 import { initPush } from './push.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -106,6 +106,15 @@ app.get('/admin', (req, res) => {
     tr:hover { background: #f3f4f6; }
     .empty { color: #999; font-style: italic; }
     small { color: #9ca3af; }
+    .config-section { margin-top: 32px; padding: 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .config-section h2 { margin: 0 0 16px; font-size: 18px; color: #333; }
+    .config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .config-row label { font-size: 14px; color: #374151; min-width: 160px; }
+    .config-row select { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; }
+    .config-row .desc { font-size: 12px; color: #9ca3af; }
+    .save-btn { background: #2563eb; color: #fff; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .save-btn:hover { background: #1d4ed8; }
+    .toast { display: none; position: fixed; top: 20px; right: 20px; background: #16a34a; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 100; }
   </style>
 </head>
 <body>
@@ -117,7 +126,97 @@ app.get('/admin', (req, res) => {
         <tbody>${rows}</tbody>
       </table>`
     : '<p class="empty">暂无在线用户</p>'}
+  <div class="config-section">
+    <h2>推送配置</h2>
+    <div class="config-row">
+      <label>华为推送通知级别</label>
+      <select id="cfg_huaweiImportance">
+        <option value="LOW"${runtimeConfig.huaweiImportance === 'LOW' ? ' selected' : ''}>LOW — 静默，仅通知栏</option>
+        <option value="NORMAL"${runtimeConfig.huaweiImportance === 'NORMAL' ? ' selected' : ''}>NORMAL — 铃声+振动</option>
+        <option value="HIGH"${runtimeConfig.huaweiImportance === 'HIGH' ? ' selected' : ''}>HIGH — 横幅弹出通知</option>
+      </select>
+    </div>
+    <div class="config-row">
+      <label>FCM 推送优先级</label>
+      <select id="cfg_fcmPriority">
+        <option value="high"${runtimeConfig.fcmPriority === 'high' ? ' selected' : ''}>high — 立即投递</option>
+        <option value="normal"${runtimeConfig.fcmPriority === 'normal' ? ' selected' : ''}>normal — 延迟投递</option>
+      </select>
+    </div>
+  </div>
+  <div class="config-section">
+    <h2>连接配置</h2>
+    <div class="config-row">
+      <label>断线宽限期（分钟）</label>
+      <input type="number" id="cfg_gracePeriodMin" value="${Math.round(runtimeConfig.gracePeriodMs / 60000)}" min="1" max="180" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+    </div>
+    <div class="config-row">
+      <label>WS 心跳间隔（秒）</label>
+      <input type="number" id="cfg_heartbeatSec" value="${Math.round(runtimeConfig.heartbeatIntervalMs / 1000)}" min="5" max="60" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+      <span class="desc">仅对新连接生效</span>
+    </div>
+    <div class="config-row">
+      <label>心跳最大丢失次数</label>
+      <input type="number" id="cfg_heartbeatMaxMissed" value="${runtimeConfig.heartbeatMaxMissed}" min="1" max="10" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+    </div>
+    <div class="config-row">
+      <label>离线消息补发延迟（ms）</label>
+      <input type="number" id="cfg_offlineMsgDelayMs" value="${runtimeConfig.offlineMsgDelayMs}" min="0" max="5000" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+    </div>
+  </div>
+  <div class="config-section">
+    <h2>业务限制</h2>
+    <div class="config-row">
+      <label>最大昵称长度</label>
+      <input type="number" id="cfg_maxNicknameLength" value="${runtimeConfig.maxNicknameLength}" min="3" max="50" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+    </div>
+    <div class="config-row">
+      <label>最大离线消息缓存数</label>
+      <input type="number" id="cfg_maxOfflineMessages" value="${runtimeConfig.maxOfflineMessages}" min="10" max="500" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+    </div>
+    <div class="config-row">
+      <label>客户端最大消息数</label>
+      <input type="number" id="cfg_maxClientMessages" value="${runtimeConfig.maxClientMessages}" min="50" max="1000" style="width:80px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:14px">
+      <span class="desc">客户端重新登录后生效</span>
+    </div>
+  </div>
+  <div style="margin-top:16px">
+    <button id="saveAllBtn" class="save-btn">保存全部配置</button>
+    <span class="desc" style="margin-left:12px">修改即时生效（心跳间隔仅对新连接生效），服务重启后恢复默认值</span>
+  </div>
+  <div class="toast" id="toast">保存成功</div>
   <p><small>刷新页面获取最新数据</small></p>
+  <script>
+    document.getElementById('saveAllBtn').addEventListener('click', async () => {
+      const body = {
+        huaweiImportance: document.getElementById('cfg_huaweiImportance').value,
+        fcmPriority: document.getElementById('cfg_fcmPriority').value,
+        gracePeriodMin: Number(document.getElementById('cfg_gracePeriodMin').value),
+        heartbeatSec: Number(document.getElementById('cfg_heartbeatSec').value),
+        heartbeatMaxMissed: Number(document.getElementById('cfg_heartbeatMaxMissed').value),
+        offlineMsgDelayMs: Number(document.getElementById('cfg_offlineMsgDelayMs').value),
+        maxNicknameLength: Number(document.getElementById('cfg_maxNicknameLength').value),
+        maxOfflineMessages: Number(document.getElementById('cfg_maxOfflineMessages').value),
+        maxClientMessages: Number(document.getElementById('cfg_maxClientMessages').value),
+      }
+      const res = await fetch('/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const result = await res.json()
+      const toast = document.getElementById('toast')
+      if (res.ok && result.ok) {
+        toast.textContent = '保存成功'
+        toast.style.background = '#16a34a'
+      } else {
+        toast.textContent = result.error || '保存失败'
+        toast.style.background = '#dc2626'
+      }
+      toast.style.display = 'block'
+      setTimeout(() => toast.style.display = 'none', 2000)
+    })
+  </script>
 </body>
 </html>`)
 })
@@ -165,6 +264,71 @@ app.post('/admin/kick', express.urlencoded({ extended: false }), (req, res) => {
   }
 
   res.redirect('/admin')
+})
+
+// 运行时配置 API
+app.post('/admin/config', express.json(), (req, res) => {
+  const b = req.body
+  const errors = []
+
+  // 推送
+  if (b.huaweiImportance != null) {
+    if (['LOW', 'NORMAL', 'HIGH'].includes(b.huaweiImportance)) {
+      runtimeConfig.huaweiImportance = b.huaweiImportance
+    } else errors.push('huaweiImportance 值无效')
+  }
+  if (b.fcmPriority != null) {
+    if (['high', 'normal'].includes(b.fcmPriority)) {
+      runtimeConfig.fcmPriority = b.fcmPriority
+    } else errors.push('fcmPriority 值无效')
+  }
+
+  // 连接（前端用用户友好单位，这里转为毫秒）
+  if (b.gracePeriodMin != null) {
+    const v = Number(b.gracePeriodMin)
+    if (v >= 1 && v <= 180) runtimeConfig.gracePeriodMs = v * 60 * 1000
+    else errors.push('gracePeriodMin 范围 1-180')
+  }
+  if (b.heartbeatSec != null) {
+    const v = Number(b.heartbeatSec)
+    if (v >= 5 && v <= 60) runtimeConfig.heartbeatIntervalMs = v * 1000
+    else errors.push('heartbeatSec 范围 5-60')
+  }
+  if (b.heartbeatMaxMissed != null) {
+    const v = Number(b.heartbeatMaxMissed)
+    if (Number.isInteger(v) && v >= 1 && v <= 10) runtimeConfig.heartbeatMaxMissed = v
+    else errors.push('heartbeatMaxMissed 范围 1-10')
+  }
+  if (b.offlineMsgDelayMs != null) {
+    const v = Number(b.offlineMsgDelayMs)
+    if (Number.isInteger(v) && v >= 0 && v <= 5000) runtimeConfig.offlineMsgDelayMs = v
+    else errors.push('offlineMsgDelayMs 范围 0-5000')
+  }
+
+  // 业务限制
+  if (b.maxNicknameLength != null) {
+    const v = Number(b.maxNicknameLength)
+    if (Number.isInteger(v) && v >= 3 && v <= 50) runtimeConfig.maxNicknameLength = v
+    else errors.push('maxNicknameLength 范围 3-50')
+  }
+  if (b.maxOfflineMessages != null) {
+    const v = Number(b.maxOfflineMessages)
+    if (Number.isInteger(v) && v >= 10 && v <= 500) runtimeConfig.maxOfflineMessages = v
+    else errors.push('maxOfflineMessages 范围 10-500')
+  }
+  if (b.maxClientMessages != null) {
+    const v = Number(b.maxClientMessages)
+    if (Number.isInteger(v) && v >= 50 && v <= 1000) runtimeConfig.maxClientMessages = v
+    else errors.push('maxClientMessages 范围 50-1000')
+  }
+
+  if (errors.length > 0) {
+    console.warn(`[admin] 配置校验失败: ${errors.join(', ')}`)
+    return res.status(400).json({ ok: false, error: errors.join('; ') })
+  }
+
+  console.log(`[admin] 运行时配置已更新:`, JSON.stringify(runtimeConfig))
+  res.json({ ok: true, runtimeConfig })
 })
 
 // 健康检查

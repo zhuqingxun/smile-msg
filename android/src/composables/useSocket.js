@@ -33,7 +33,8 @@ const peerIsOffline = ref(false)
 const error = ref('')
 const loading = ref(false)
 
-const MAX_MESSAGES = 200
+let maxMessages = 200
+const clientConfig = ref({ maxNicknameLength: 20, maxClientMessages: 200 })
 let keepaliveTimer = null
 
 function getOrCreateUuid() {
@@ -135,14 +136,18 @@ function initSocket() {
         uuid: myUuid.value,
         nickname: myNickname.value
       }, (res) => {
-        if (res.success && res.restored) {
-          conversationId.value = res.conversationId
-          peerNickname.value = res.target?.nickname || ''
-          phase.value = res.target ? 'chat' : 'idle'
-          peerIsOffline.value = false
-        }
-        // 重连后重新执行推送策略
         if (res.success) {
+          if (res.clientConfig) {
+            clientConfig.value = res.clientConfig
+            maxMessages = res.clientConfig.maxClientMessages ?? 200
+          }
+          if (res.restored) {
+            conversationId.value = res.conversationId
+            peerNickname.value = res.target?.nickname || ''
+            phase.value = res.target ? 'chat' : 'idle'
+            peerIsOffline.value = false
+          }
+          // 重连后重新执行推送策略
           registerPushAndDecideStrategy()
         }
       })
@@ -156,8 +161,8 @@ function initSocket() {
   socket.on('new_message', ({ conversationId: convId, message }) => {
     if (convId === conversationId.value) {
       messages.value.push(message)
-      if (messages.value.length > MAX_MESSAGES) {
-        messages.value = messages.value.slice(-MAX_MESSAGES)
+      if (messages.value.length > maxMessages) {
+        messages.value = messages.value.slice(-maxMessages)
       }
       onNewMessage(message)
     }
@@ -208,6 +213,10 @@ function login(nickname) {
         loading.value = false
         if (res.success) {
           myNickname.value = nickname.trim()
+          if (res.clientConfig) {
+            clientConfig.value = res.clientConfig
+            maxMessages = res.clientConfig.maxClientMessages ?? 200
+          }
           if (res.restored) {
             conversationId.value = res.conversationId
             peerNickname.value = res.target?.nickname || ''
@@ -355,6 +364,7 @@ export function useSocket() {
     peerIsOffline: readonly(peerIsOffline),
     error: readonly(error),
     loading: readonly(loading),
+    clientConfig: readonly(clientConfig),
     // 方法
     login,
     createChat,

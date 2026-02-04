@@ -1,4 +1,4 @@
-import { users, socketToUser } from '../store.js'
+import { users, socketToUser, runtimeConfig } from '../store.js'
 import { wsConnections, registerWsConnection, removeWsConnection, sendToUser } from '../bridge.js'
 import {
   handleLogin as loginLogic,
@@ -26,7 +26,7 @@ export function handleWsConnection(ws, req, io) {
   let missedPongs = 0
   const heartbeatInterval = setInterval(() => {
     if (ws.readyState === 1) {
-      if (missedPongs >= 2) {
+      if (missedPongs >= runtimeConfig.heartbeatMaxMissed) {
         console.log(`[ws] 心跳超时，关闭连接: uuid=${userUuid}`)
         ws.close()
         return
@@ -34,7 +34,7 @@ export function handleWsConnection(ws, req, io) {
       missedPongs++
       ws.send(JSON.stringify({ type: 'ping' }))
     }
-  }, 10000)
+  }, runtimeConfig.heartbeatIntervalMs)
 
   ws.on('message', (raw) => {
     let msg
@@ -106,7 +106,7 @@ export function handleWsConnection(ws, req, io) {
                 ws.send(JSON.stringify({ type: 'event', event: 'new_message', data: msg }))
               }
             }
-          }, 500)
+          }, runtimeConfig.offlineMsgDelayMs)
         }
 
         if (result.restored) {
@@ -114,10 +114,11 @@ export function handleWsConnection(ws, req, io) {
           ack({
             success: true, restored: true,
             conversationId: result.conversationId,
-            target: result.target
+            target: result.target,
+            clientConfig: result.clientConfig
           })
         } else {
-          ack({ success: true })
+          ack({ success: true, clientConfig: result.clientConfig })
         }
         break
       }

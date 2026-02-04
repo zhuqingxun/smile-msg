@@ -2,6 +2,7 @@ import { createRequire } from 'module'
 import path from 'path'
 import fs from 'fs'
 import { sendHuaweiPush, isHuaweiPushEnabled, initHuaweiPush } from './huaweiPush.js'
+import { runtimeConfig } from './store.js'
 
 const require = createRequire(import.meta.url)
 
@@ -71,7 +72,7 @@ export async function sendPushNotification(token, { senderNickname, content, con
         conversationId
       },
       android: {
-        priority: 'high',
+        priority: runtimeConfig.fcmPriority,
         notification: {
           channelId: 'messages'
         }

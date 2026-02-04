@@ -2,7 +2,7 @@
 title: "Push Kit V2→V3 迁移：HarmonyOS NEXT 推送失败"
 status: open
 created_at: 2026-02-02T00:00:00
-updated_at: 2026-02-05T00:00:00
+updated_at: 2026-02-04T00:00:00
 ---
 
 # Push Kit V2→V3 迁移：HarmonyOS NEXT 推送失败
@@ -120,6 +120,44 @@ Service Account 密钥的创建位置是**华为开发者联盟管理中心的 A
 
 1. 更新 Zeabur 环境变量 `HUAWEI_SERVICE_ACCOUNT` 为新密钥 JSON（key_id: `60addb637ce54cfaab061f07af0aa17d`）
 2. 部署代码变更（RS256 签名算法）
+
+### 验证结果
+
+RS256 签名算法修复已验证（JWT→access_token 交换成功），但 Push API 调用仍返回 `80200001: Authentication Error`（见下方三次修复）。
+
+---
+
+## 三次修复：JWT 直接鉴权（移除 token 交换）
+
+**问题时间**: 2026-02-04
+**错误日志**:
+```
+[PushKit] V3 推送失败: code=80200001, msg=Authentication Error
+```
+
+### 根因分析
+
+二次修复后 JWT→access_token 交换本身成功，但用换取的 access_token 调用 Push Kit V3 API 时返回 `80200001`（鉴权失败）。Service Account 在华为授权管理页面中没有 Push Kit API 的授权。
+
+经查阅华为 Push Kit V3 文档，V3 API 应**直接使用 JWT 作为 Bearer token** 调用推送接口，无需经过 OAuth token 交换。流程为：
+
+1. 生成 RS256 签名的 JWT
+2. 直接以 `Authorization: Bearer <JWT>` 调用 `push-api.cloud.huawei.com/v3/...`
+
+### 修改文件
+
+| 文件 | 修改说明 |
+|------|---------|
+| server/src/huaweiPush.js | 移除 `getAccessToken()` token 交换流程，`sendHuaweiPush()` 直接使用 JWT 鉴权；清理诊断日志 |
+
+### 关键代码变更
+
+```diff
+- const at = await getAccessToken()
+- 'Authorization': `Bearer ${at}`
++ const jwt = generateJWT()
++ 'Authorization': `Bearer ${jwt}`
+```
 
 ### 验证结果
 
